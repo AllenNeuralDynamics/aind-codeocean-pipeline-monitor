@@ -3,7 +3,8 @@
 import json
 import logging
 from datetime import datetime
-from pathlib import Path
+from typing import Optional
+from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 from codeocean import CodeOcean
@@ -109,12 +110,74 @@ class PipelineMonitorJob:
             else:
                 raise
 
-    def _get_name(self) -> str:
+    def _get_input_data_name(self) -> Optional[str]:
+        """Get the name of the input data asset from the run_params"""
+
+        input_data_assets = self.job_settings.run_params.data_assets
+        if input_data_assets:
+            first_id = input_data_assets[0]
+            input_data_asset = self.client.data_assets.get_data_asset(
+                data_asset_id=first_id
+            )
+            return input_data_asset.name
+        else:
+            return None
+
+    def _get_name_from_data_description(
+        self, computation: Computation
+    ) -> Optional[str]:
+        """
+        Attempts to download a data_description file from the 'results' folder
+        and then extracts the 'name' from that file.
+
+        Parameters
+        ----------
+        computation : Computation
+
+        Returns
+        -------
+        str | None
+          The name from that data_description file if found, otherwise None.
+
+        """
+
+        dd_file_name = (
+            self.job_settings.capture_settings.data_description_file_name
+        )
+
+        result_files = self.client.computations.list_computation_results(
+            computation_id=computation.id
+        )
+
+        if dd_file_name in [r.path for r in result_files.items]:
+            download_url = (
+                self.client.computations.get_result_file_download_url(
+                    computation_id=computation.id,
+                    path=dd_file_name,
+                )
+            )
+            with urlopen(download_url.url) as f:
+                contents = f.read().decode("utf-8")
+            data_description = json.loads(contents)
+            return data_description.get("name")
+        else:
+            return None
+
+    def _get_name(self, computation: Computation) -> str:
         """
         Get a data asset name. Will try to use the name from a
         data_description.json file. If file does not exist, then will build a
         default name using the input_data_name, process_name_suffix, and
         process_name_suffix_tz fields defined in CapturedDataAssetParams.
+
+        Parameters
+        ----------
+        computation : Computation
+          Uses the computation.id and the code ocean sdk to check if there is
+          a data_description.json file in the results folder. Will attempt to
+          extract the data_asset_name from that file if found. Otherwise, this
+          method will construct a default name using the input data_asset and
+          the current datetime in utc.
 
         Returns
         -------
@@ -122,28 +185,18 @@ class PipelineMonitorJob:
 
         """
 
-        capture_params = self.job_settings.captured_data_asset_params
+        capture_params = self.job_settings.capture_settings
         dt = datetime.now(tz=ZoneInfo("UTC"))
-        input_data_name = capture_params.input_data_name
+        input_data_name = self._get_input_data_name()
         suffix = capture_params.process_name_suffix
         dt_suffix = dt.strftime("%Y-%m-%d_%H-%M-%S")
 
         default_name = f"{input_data_name}_{suffix}_{dt_suffix}"
 
-        data_description_location = capture_params.data_description_location
+        name_from_file = self._get_name_from_data_description(
+            computation=computation
+        )
 
-        if (
-            data_description_location is not None
-            and Path(capture_params.data_description_location).is_file()
-        ):
-            with open(data_description_location, "r") as f:
-                contents = json.load(f)
-            if isinstance(contents, dict):
-                name_from_file = contents.get("name")
-            else:
-                name_from_file = None
-        else:
-            name_from_file = None
         if name_from_file is None and input_data_name is None:
             raise Exception("Unable to construct data asset name.")
         elif name_from_file is not None:
@@ -169,32 +222,26 @@ class PipelineMonitorJob:
         DataAssetParams
 
         """
-        if self.job_settings.captured_data_asset_params.name is not None:
-            data_asset_name = self.job_settings.captured_data_asset_params.name
+        if self.job_settings.capture_settings.name is not None:
+            data_asset_name = self.job_settings.capture_settings.name
         else:
-            data_asset_name = self._get_name()
-        if self.job_settings.captured_data_asset_params.mount is not None:
-            data_asset_mount = (
-                self.job_settings.captured_data_asset_params.mount
-            )
+            data_asset_name = self._get_name(monitor_pipeline_response)
+        if self.job_settings.capture_settings.mount is not None:
+            data_asset_mount = self.job_settings.capture_settings.mount
         else:
             data_asset_mount = data_asset_name
-        if self.job_settings.captured_data_asset_params.target is not None:
+        if self.job_settings.capture_settings.target is not None:
             prefix = data_asset_name
-            bucket = (
-                self.job_settings.captured_data_asset_params.target.aws.bucket
-            )
+            bucket = self.job_settings.capture_settings.target.aws.bucket
             target = Target(aws=AWSS3Target(bucket=bucket, prefix=prefix))
         else:
             target = None
 
         data_asset_params = DataAssetParams(
             name=data_asset_name,
-            description=(
-                self.job_settings.captured_data_asset_params.description
-            ),
+            description=self.job_settings.capture_settings.description,
             mount=data_asset_mount,
-            tags=self.job_settings.captured_data_asset_params.tags,
+            tags=self.job_settings.capture_settings.tags,
             source=Source(
                 computation=ComputationSource(
                     id=monitor_pipeline_response.id,
@@ -202,11 +249,9 @@ class PipelineMonitorJob:
             ),
             target=target,
             custom_metadata=(
-                self.job_settings.captured_data_asset_params.custom_metadata
+                self.job_settings.capture_settings.custom_metadata
             ),
-            results_info=(
-                self.job_settings.captured_data_asset_params.results_info
-            ),
+            results_info=self.job_settings.capture_settings.results_info,
         )
         return data_asset_params
 
@@ -225,7 +270,7 @@ class PipelineMonitorJob:
             start_pipeline_response
         )
         logging.info(f"monitor_pipeline_response: {monitor_pipeline_response}")
-        if self.job_settings.captured_data_asset_params is not None:
+        if self.job_settings.capture_settings is not None:
             logging.info("Capturing result")
             data_asset_params = self._build_data_asset_params(
                 monitor_pipeline_response=monitor_pipeline_response
@@ -244,8 +289,6 @@ class PipelineMonitorJob:
             )
             self.client.data_assets.update_permissions(
                 data_asset_id=capture_result_response.id,
-                permissions=(
-                    self.job_settings.captured_data_asset_params.permissions
-                ),
+                permissions=self.job_settings.capture_settings.permissions,
             )
         logging.info("Finished job.")

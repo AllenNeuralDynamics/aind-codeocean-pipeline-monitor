@@ -1,5 +1,6 @@
 """Test methods in job module"""
 
+import json
 import os
 import unittest
 from datetime import datetime
@@ -8,7 +9,15 @@ from unittest.mock import MagicMock, patch
 
 from codeocean import CodeOcean
 from codeocean.components import EveryoneRole, Permissions
-from codeocean.computation import Computation, ComputationState, RunParams
+from codeocean.computation import (
+    Computation,
+    ComputationState,
+    DataAssetsRunParam,
+    DownloadFileURL,
+    Folder,
+    FolderItem,
+    RunParams,
+)
 from codeocean.data_asset import (
     AWSS3Target,
     ComputationSource,
@@ -25,7 +34,7 @@ from tenacity import RetryError
 
 from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 from aind_codeocean_pipeline_monitor.models import (
-    CapturedDataAssetParams,
+    CaptureSettings,
     PipelineMonitorSettings,
 )
 
@@ -42,15 +51,26 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with open(RESOURCES_DIR / "expected_log_output.txt", "r") as f:
             expected_run_logs = f.read().splitlines()
 
+        with open(RESOURCES_DIR / "data_description.json", "r") as f:
+            expected_data_description = json.dumps(json.load(f))
+
         no_capture_result_settings = PipelineMonitorSettings(
-            run_params=RunParams(pipeline_id="abc-123")
+            run_params=RunParams(
+                pipeline_id="abc-123",
+            )
         )
         capture_results_settings = PipelineMonitorSettings(
-            run_params=RunParams(pipeline_id="abc-123"),
-            captured_data_asset_params=CapturedDataAssetParams(
+            run_params=RunParams(
+                pipeline_id="abc-123",
+                data_assets=[
+                    DataAssetsRunParam(
+                        id="abc-001",
+                        mount="ecephys",
+                    )
+                ],
+            ),
+            capture_settings=CaptureSettings(
                 tags=["derived"],
-                data_description_location=None,
-                input_data_name="ecephys_123456_2020-10-10",
             ),
         )
         too_many_requests_response = Response()
@@ -75,6 +95,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         cls.too_many_requests_error = too_many_request_error
         cls.internal_server_error = internal_server_error
         cls.expected_run_logs = expected_run_logs
+        cls.expected_data_description = expected_data_description
 
     @patch("codeocean.computation.Computations.get_computation")
     @patch("tenacity.nap.time.sleep", return_value=None)
@@ -335,34 +356,206 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_sleep.assert_called_once_with(5)
         mock_nap_sleep.assert_not_called()
 
+    @patch("codeocean.data_asset.DataAssets.get_data_asset")
+    def test_get_input_data_name(self, mock_get_data_asset: MagicMock):
+        """Tests _get_input_data_name success"""
+        mock_get_data_asset.return_value = DataAsset(
+            id="abc-001",
+            created=0,
+            name="ecephys_123456_2020-10-10",
+            mount="ecephys",
+            state=DataAssetState.Ready,
+            type=DataAssetType.Dataset,
+            last_used=1,
+        )
+        input_data_name = self.capture_job._get_input_data_name()
+        self.assertEqual("ecephys_123456_2020-10-10", input_data_name)
+
+    @patch("codeocean.data_asset.DataAssets.get_data_asset")
+    def test_get_input_data_name_none(self, mock_get_data_asset: MagicMock):
+        """Tests _get_input_data_name when no input data attached"""
+        input_data_name = self.no_capture_job._get_input_data_name()
+        self.assertIsNone(input_data_name)
+        mock_get_data_asset.assert_not_called()
+
+    @patch("codeocean.computation.Computations.list_computation_results")
+    @patch("codeocean.computation.Computations.get_result_file_download_url")
+    @patch("aind_codeocean_pipeline_monitor.job.urlopen")
+    def test_get_name_from_data_description(
+        self,
+        mock_url_open: MagicMock,
+        mock_get_result_file_url: MagicMock,
+        mock_list_comp_results: MagicMock,
+    ):
+        """Tests _get_name_from_data_description"""
+        mock_list_comp_results.return_value = Folder(
+            items=[
+                FolderItem(name="output", path="output", type=""),
+                FolderItem(
+                    name="data_description.json",
+                    path="data_description.json",
+                    type="",
+                ),
+            ]
+        )
+        mock_get_result_file_url.return_value = DownloadFileURL(
+            url="some_download_url"
+        )
+        mock_read = MagicMock()
+        mock_read.read.return_value = self.expected_data_description.encode(
+            "utf-8"
+        )
+        mock_url_open.return_value.__enter__.return_value = mock_read
+        name = self.capture_job._get_name_from_data_description(
+            computation=Computation(
+                id="c123",
+                created=0,
+                name="c_name",
+                state=ComputationState.Completed,
+                run_time=100,
+            )
+        )
+        expected_name_from_file = (
+            "ecephys_709351_2024-04-10_14-53-09_sorted_2024-04-19_23-19-34"
+        )
+        self.assertEqual(expected_name_from_file, name)
+
+    @patch("codeocean.computation.Computations.list_computation_results")
+    @patch("codeocean.computation.Computations.get_result_file_download_url")
+    @patch("aind_codeocean_pipeline_monitor.job.urlopen")
+    def test_get_name_from_data_description_none(
+        self,
+        mock_url_open: MagicMock,
+        mock_get_result_file_url: MagicMock,
+        mock_list_comp_results: MagicMock,
+    ):
+        """Tests _get_name_from_data_description when no file is found."""
+        mock_list_comp_results.return_value = Folder(
+            items=[
+                FolderItem(name="output", path="output", type=""),
+            ]
+        )
+        name = self.capture_job._get_name_from_data_description(
+            computation=Computation(
+                id="c123",
+                created=0,
+                name="c_name",
+                state=ComputationState.Completed,
+                run_time=100,
+            )
+        )
+        self.assertIsNone(name)
+        mock_url_open.assert_not_called()
+        mock_get_result_file_url.assert_not_called()
+
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_get_name(self, mock_dt: MagicMock):
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_input_data_name"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_name_from_data_description"
+    )
+    def test_get_name(
+        self,
+        mock_get_name_from_data_description: MagicMock,
+        mock_get_input_data_name: MagicMock,
+        mock_dt: MagicMock,
+    ):
         """Tests _get_name from settings"""
+
+        mock_get_name_from_data_description.return_value = None
+        mock_get_input_data_name.return_value = "ecephys_123456_2020-10-10"
         mock_dt.now.return_value = datetime(2020, 11, 10)
-        name = self.capture_job._get_name()
+        completed_comp = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Completed,
+            run_time=100,
+        )
+        name = self.capture_job._get_name(computation=completed_comp)
         self.assertEqual(
             "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00", name
         )
 
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_get_name_from_dd(self, mock_dt: MagicMock):
-        """Tests _get_name from data_description file."""
-        settings2 = self.capture_job.job_settings.model_copy(deep=True)
-        settings2.captured_data_asset_params.data_description_location = (
-            RESOURCES_DIR / "data_description.json"
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_input_data_name"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_name_from_data_description"
+    )
+    def test_get_name_from_dd(
+        self,
+        mock_get_name_from_data_description: MagicMock,
+        mock_get_input_data_name: MagicMock,
+        mock_dt: MagicMock,
+    ):
+        """Tests _get_name from data_description file"""
+
+        mock_get_name_from_data_description.return_value = (
+            "ecephys_123456_2020-10-10_sorted_2020-11-10_00-00-00"
         )
-        job = PipelineMonitorJob(
-            job_settings=settings2, client=CodeOcean(domain="", token="")
-        )
+        mock_get_input_data_name.return_value = "ecephys_123456_2020-10-10"
         mock_dt.now.return_value = datetime(2020, 11, 10)
-        name = job._get_name()
+        completed_comp = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Completed,
+            run_time=100,
+        )
+        name = self.capture_job._get_name(computation=completed_comp)
         self.assertEqual(
-            "ecephys_709351_2024-04-10_14-53-09_sorted_2024-04-19_23-19-34",
-            name,
+            "ecephys_123456_2020-10-10_sorted_2020-11-10_00-00-00", name
         )
 
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_build_data_asset_params(self, mock_dt: MagicMock):
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_input_data_name"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_name_from_data_description"
+    )
+    def test_get_name_error(
+        self,
+        mock_get_name_from_data_description: MagicMock,
+        mock_get_input_data_name: MagicMock,
+        mock_dt: MagicMock,
+    ):
+        """Tests _get_name when input data name is None and data_description
+        name is None"""
+
+        mock_get_name_from_data_description.return_value = None
+        mock_get_input_data_name.return_value = None
+        mock_dt.now.return_value = datetime(2020, 11, 10)
+        completed_comp = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Completed,
+            run_time=100,
+        )
+        with self.assertRaises(Exception) as e:
+            self.capture_job._get_name(computation=completed_comp)
+
+        self.assertEqual(
+            "Unable to construct data asset name.", e.exception.args[0]
+        )
+
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
+    )
+    @patch("aind_codeocean_pipeline_monitor.job.datetime")
+    def test_build_data_asset_params(
+        self, mock_dt: MagicMock, mock_get_name: MagicMock
+    ):
         """Tests _build_data_asset_params method"""
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
@@ -372,6 +565,9 @@ class TestPipelineMonitorJob(unittest.TestCase):
             name="c_name",
             state=ComputationState.Completed,
             run_time=100,
+        )
+        mock_get_name.return_value = (
+            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
         )
         params = self.capture_job._build_data_asset_params(
             monitor_pipeline_response=completed_comp
@@ -387,9 +583,18 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         self.assertEqual(expected_params, params)
 
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
+    )
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_build_data_asset_params_with_name_mount(self, mock_dt: MagicMock):
+    def test_build_data_asset_params_with_name_mount(
+        self, mock_dt: MagicMock, mock_get_name: MagicMock
+    ):
         """Tests _build_data_asset_params method when name and mount are set"""
+
+        mock_get_name.return_value = (
+            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+        )
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
@@ -400,8 +605,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
             run_time=100,
         )
         settings2 = self.capture_job.job_settings.model_copy(deep=True)
-        settings2.captured_data_asset_params.name = "foo"
-        settings2.captured_data_asset_params.mount = "bar"
+        settings2.capture_settings.name = "foo"
+        settings2.capture_settings.mount = "bar"
         job = PipelineMonitorJob(
             job_settings=settings2, client=CodeOcean(domain="", token="")
         )
@@ -419,11 +624,19 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         self.assertEqual(expected_params, params)
 
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
+    )
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_build_data_asset_params_with_target(self, mock_dt: MagicMock):
-        """Tests _build_data_asset_params method when name and mount are set"""
+    def test_build_data_asset_params_with_target(
+        self, mock_dt: MagicMock, mock_get_name: MagicMock
+    ):
+        """Tests _build_data_asset_params method when target is set"""
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
+        mock_get_name.return_value = (
+            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+        )
         completed_comp = Computation(
             id="c123",
             created=0,
@@ -432,7 +645,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             run_time=100,
         )
         settings2 = self.capture_job.job_settings.model_copy(deep=True)
-        settings2.captured_data_asset_params.target = Target(
+        settings2.capture_settings.target = Target(
             aws=AWSS3Target(bucket="ext_bucket", prefix="")
         )
         job = PipelineMonitorJob(
@@ -463,6 +676,10 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._build_data_asset_params"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
         "._wait_for_data_asset"
     )
     @patch(
@@ -481,6 +698,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_create_data_asset: MagicMock,
         mock_monitor_pipeline: MagicMock,
         mock_wait_for_data_asset: MagicMock,
+        mock_build_data_asset_parms: MagicMock,
     ):
         """Tests steps are called in run_job method"""
         mock_datetime.now.return_value = datetime(2020, 11, 10)
@@ -517,6 +735,15 @@ class TestPipelineMonitorJob(unittest.TestCase):
             type=DataAssetType.Result,
             last_used=1,
             tags=["derived"],
+        )
+
+        mock_build_data_asset_parms.return_value = DataAssetParams(
+            name="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            tags=["derived"],
+            mount="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            source=Source(
+                computation=ComputationSource(id="c123", path=None),
+            ),
         )
         with self.assertLogs(level="INFO") as captured:
             self.capture_job.run_job()
