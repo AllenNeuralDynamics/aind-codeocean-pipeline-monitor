@@ -362,14 +362,14 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_get_data_asset.return_value = DataAsset(
             id="abc-001",
             created=0,
-            name="ecephys_123456_2020-10-10",
+            name="ecephys_123456_2020-10-10_00-00-00",
             mount="ecephys",
             state=DataAssetState.Ready,
             type=DataAssetType.Dataset,
             last_used=1,
         )
         input_data_name = self.capture_job._get_input_data_name()
-        self.assertEqual("ecephys_123456_2020-10-10", input_data_name)
+        self.assertEqual("ecephys_123456_2020-10-10_00-00-00", input_data_name)
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
     def test_get_input_data_name_none(self, mock_get_data_asset: MagicMock):
@@ -466,7 +466,9 @@ class TestPipelineMonitorJob(unittest.TestCase):
         """Tests _get_name from settings"""
 
         mock_get_name_from_data_description.return_value = None
-        mock_get_input_data_name.return_value = "ecephys_123456_2020-10-10"
+        mock_get_input_data_name.return_value = (
+            "ecephys_123456_2020-10-10_00-00-00"
+        )
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
             id="c123",
@@ -476,9 +478,10 @@ class TestPipelineMonitorJob(unittest.TestCase):
             run_time=100,
         )
         name = self.capture_job._get_name(computation=completed_comp)
-        self.assertEqual(
-            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00", name
+        expected_name = (
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
+        self.assertEqual(expected_name, name)
 
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
     @patch(
@@ -498,9 +501,11 @@ class TestPipelineMonitorJob(unittest.TestCase):
         """Tests _get_name from data_description file"""
 
         mock_get_name_from_data_description.return_value = (
-            "ecephys_123456_2020-10-10_sorted_2020-11-10_00-00-00"
+            "ecephys_123456_2020-10-10_00-00-00_sorted_2020-11-10_00-00-00"
         )
-        mock_get_input_data_name.return_value = "ecephys_123456_2020-10-10"
+        mock_get_input_data_name.return_value = (
+            "ecephys_123456_2020-10-10_00-00-00"
+        )
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
             id="c123",
@@ -511,7 +516,54 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         name = self.capture_job._get_name(computation=completed_comp)
         self.assertEqual(
-            "ecephys_123456_2020-10-10_sorted_2020-11-10_00-00-00", name
+            "ecephys_123456_2020-10-10_00-00-00_sorted_2020-11-10_00-00-00",
+            name,
+        )
+
+    @patch("aind_codeocean_pipeline_monitor.job.datetime")
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_input_data_name"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_name_from_data_description"
+    )
+    def test_get_name_from_dd_bad_format(
+        self,
+        mock_get_name_from_data_description: MagicMock,
+        mock_get_input_data_name: MagicMock,
+        mock_dt: MagicMock,
+    ):
+        """Tests _get_name from data_description file when name in file is
+        not in the correct format."""
+
+        mock_get_name_from_data_description.return_value = (
+            "ecephys_123456_2020-10-1_sorted_2020-11-10_00-00-00"
+        )
+        mock_get_input_data_name.return_value = (
+            "ecephys_123456_2020-10-10_00-00-00"
+        )
+        mock_dt.now.return_value = datetime(2020, 11, 10)
+        completed_comp = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Completed,
+            run_time=100,
+        )
+        with self.assertLogs() as captured:
+            name = self.capture_job._get_name(computation=completed_comp)
+        expected_logs = [
+            "WARNING:root:Name in data description "
+            "ecephys_123456_2020-10-1_sorted_2020-11-10_00-00-00 "
+            "does not match expected pattern! "
+            "Will attempt to set default."
+        ]
+        self.assertEqual(expected_logs, captured.output)
+        self.assertEqual(
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00",
+            name,
         )
 
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
@@ -567,15 +619,18 @@ class TestPipelineMonitorJob(unittest.TestCase):
             run_time=100,
         )
         mock_get_name.return_value = (
-            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         params = self.capture_job._build_data_asset_params(
             monitor_pipeline_response=completed_comp
         )
+        expected_name = (
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
+        )
         expected_params = DataAssetParams(
-            name="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            name=expected_name,
             tags=["derived"],
-            mount="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            mount=expected_name,
             source=Source(
                 computation=ComputationSource(id="c123", path=None),
             ),
@@ -593,7 +648,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         """Tests _build_data_asset_params method when name and mount are set"""
 
         mock_get_name.return_value = (
-            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
@@ -635,7 +690,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
         mock_get_name.return_value = (
-            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         completed_comp = Computation(
             id="c123",
@@ -652,7 +707,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             job_settings=settings2, client=CodeOcean(domain="", token="")
         )
         expected_name = (
-            "ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00"
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         expected_params = DataAssetParams(
             name=expected_name,
@@ -716,11 +771,15 @@ class TestPipelineMonitorJob(unittest.TestCase):
             state=ComputationState.Completed,
             run_time=100,
         )
+
+        expected_name = (
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
+        )
         mock_create_data_asset.return_value = DataAsset(
             id="def-123",
             created=1,
-            name="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
-            mount="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            name=expected_name,
+            mount=expected_name,
             state=DataAssetState.Draft,
             type=DataAssetType.Result,
             last_used=1,
@@ -729,8 +788,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_wait_for_data_asset.return_value = DataAsset(
             id="def-123",
             created=1,
-            name="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
-            mount="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            name=expected_name,
+            mount=expected_name,
             state=DataAssetState.Ready,
             type=DataAssetType.Result,
             last_used=1,
@@ -738,9 +797,9 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
 
         mock_build_data_asset_parms.return_value = DataAssetParams(
-            name="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            name=expected_name,
             tags=["derived"],
-            mount="ecephys_123456_2020-10-10_processed_2020-11-10_00-00-00",
+            mount=expected_name,
             source=Source(
                 computation=ComputationSource(id="c123", path=None),
             ),

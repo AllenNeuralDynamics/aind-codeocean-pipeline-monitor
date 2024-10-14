@@ -2,11 +2,13 @@
 
 import json
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
+from aind_data_schema_models.data_name_patterns import DataRegex
 from codeocean import CodeOcean
 from codeocean.computation import Computation, ComputationState
 from codeocean.data_asset import (
@@ -196,6 +198,16 @@ class PipelineMonitorJob:
         name_from_file = self._get_name_from_data_description(
             computation=computation
         )
+        if (
+            name_from_file is not None
+            and re.match(DataRegex.DERIVED.value, name_from_file) is None
+        ):
+            logging.warning(
+                f"Name in data description {name_from_file} "
+                f"does not match expected pattern! "
+                f"Will attempt to set default."
+            )
+            name_from_file = None
 
         if name_from_file is None and input_data_name is None:
             raise Exception("Unable to construct data asset name.")
