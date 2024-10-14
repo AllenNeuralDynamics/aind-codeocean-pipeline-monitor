@@ -7,14 +7,53 @@
 ![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen?logo=codecov)
 ![Python](https://img.shields.io/badge/python->=3.7-blue?logo=python)
 
-
+Package for starting a pipeline, waiting for it to finish, and optionally capturing the results as a data asset.
 
 ## Usage
- - To use this template, click the green `Use this template` button and `Create new repository`.
- - After github initially creates the new repository, please wait an extra minute for the initialization scripts to finish organizing the repo.
- - To enable the automatic semantic version increments: in the repository go to `Settings` and `Collaborators and teams`. Click the green `Add people` button. Add `svc-aindscicomp` as an admin. Modify the file in `.github/workflows/tag_and_publish.yml` and remove the if statement in line 65. The semantic version will now be incremented every time a code is committed into the main branch.
- - To publish to PyPI, enable semantic versioning and uncomment the publish block in `.github/workflows/tag_and_publish.yml`. The code will now be published to PyPI every time the code is committed into the main branch.
- - The `.github/workflows/test_and_lint.yml` file will run automated tests and style checks every time a Pull Request is opened. If the checks are undesired, the `test_and_lint.yml` can be deleted. The strictness of the code coverage level, etc., can be modified by altering the configurations in the `pyproject.toml` file and the `.flake8` file.
+- Define job using PipelineMonitorJobSettings class.
+- Define a CodeOcean client.
+- Construct a PipelineMonitorJob with these settings.
+- Run the job with the run_job method.
+
+```python
+from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
+from aind_codeocean_pipeline_monitor.models import (
+    CaptureSettings,
+    PipelineMonitorSettings,
+)
+
+from codeocean.computation import (
+    DataAssetsRunParam,
+    RunParams,
+)
+from codeocean import CodeOcean
+import os
+
+domain = os.getenv("CODEOCEAN_DOMAIN")
+token = os.getenv("CODEOCEAN_TOKEN")
+
+codeocean = CodeOcean(domain=domain, token=token)
+
+# Please consult Code Ocean docs for info about RunParams and DataAssetParams
+settings = PipelineMonitorSettings(
+    run_params=RunParams(
+        capsule_id="<your capsule id>",
+        data_assets=[
+            DataAssetsRunParam(
+                id="<your input data asset id>",
+                mount="<your input data mount>",
+            )
+        ],
+    ),
+    capture_settings=CaptureSettings(
+        tags=["derived"]
+    ),  # 'tags' is the only required field
+)
+
+job = PipelineMonitorJob(settings=settings, client=codeocean)
+job.run_job()
+```
+
 
 ## Installation
 To use the software, in the root directory, run
