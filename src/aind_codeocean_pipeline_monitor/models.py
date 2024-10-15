@@ -58,6 +58,21 @@ class PipelineMonitorSettings(BaseSettings):
     finished.
     """
 
+    computation_polling_interval: int = Field(
+        default=180,
+        description=(
+            "Time in seconds in between checks that the pipeline is finished."
+        ),
+        gte=5,
+    )
+    data_asset_ready_polling_interval: int = Field(
+        default=10,
+        description=(
+            "Time in seconds in between checks that the captured data asset "
+            "is ready."
+        ),
+        gte=5,
+    )
     run_params: RunParams = Field(
         ..., description="Parameters for running a pipeline"
     )
