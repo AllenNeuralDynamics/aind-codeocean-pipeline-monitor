@@ -117,9 +117,9 @@ class PipelineMonitorJob:
 
         input_data_assets = self.job_settings.run_params.data_assets
         if input_data_assets:
-            first_id = input_data_assets[0]
+            first_data_asset = input_data_assets[0]
             input_data_asset = self.client.data_assets.get_data_asset(
-                data_asset_id=first_id
+                data_asset_id=first_data_asset.id
             )
             return input_data_asset.name
         else:
