@@ -66,7 +66,12 @@ class PipelineMonitorJob:
         """
         try:
             wait_until_completed_response = (
-                self.client.computations.wait_until_completed(computation)
+                self.client.computations.wait_until_completed(
+                    computation=computation,
+                    polling_interval=(
+                        self.job_settings.computation_polling_interval
+                    ),
+                )
             )
             if wait_until_completed_response.state == ComputationState.Failed:
                 raise Exception(
@@ -98,7 +103,10 @@ class PipelineMonitorJob:
         try:
             wait_until_ready_response = (
                 self.client.data_assets.wait_until_ready(
-                    create_data_asset_response
+                    data_asset=create_data_asset_response,
+                    polling_interval=(
+                        self.job_settings.data_asset_ready_polling_interval
+                    ),
                 )
             )
             if wait_until_ready_response.state == DataAssetState.Failed:

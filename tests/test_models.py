@@ -79,6 +79,8 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
                 "process_name_suffix_tz": "UTC",
                 "permissions": {"everyone": "viewer"},
             },
+            "computation_polling_interval": 180,
+            "data_asset_ready_polling_interval": 10,
         }
         self.assertEqual(
             expected_model_json,

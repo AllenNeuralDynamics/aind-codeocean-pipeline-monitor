@@ -135,7 +135,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             )
         )
         self.assertEqual(completed_comp, response)
-        mock_sleep.assert_called_once_with(5)
+        mock_sleep.assert_called_once_with(180)
         mock_nap_sleep.assert_called_once()
 
     @patch("codeocean.computation.Computations.get_computation")
@@ -225,7 +225,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 )
             )
         self.assertIn("The pipeline run failed", e.exception.args[0])
-        mock_sleep.assert_called_once_with(5)
+        mock_sleep.assert_called_once_with(180)
         mock_nap_sleep.assert_not_called()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
@@ -265,7 +265,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         response = self.capture_job._wait_for_data_asset(initial_data_asset)
 
         self.assertEqual(completed_data_asset, response)
-        mock_sleep.assert_called_once_with(5)
+        mock_sleep.assert_called_once_with(10)
         mock_nap_sleep.assert_called_once()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
@@ -353,7 +353,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertRaises(Exception) as e:
             self.capture_job._wait_for_data_asset(initial_data_asset)
         self.assertIn("Data asset creation failed", e.exception.args[0])
-        mock_sleep.assert_called_once_with(5)
+        mock_sleep.assert_called_once_with(10)
         mock_nap_sleep.assert_not_called()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
