@@ -8,6 +8,8 @@ from typing import Optional
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
+import requests
+from aind_alert_utils.teams import create_body_contents
 from aind_data_schema_models.data_name_patterns import DataRegex
 from codeocean import CodeOcean
 from codeocean.computation import Computation, ComputationState
@@ -120,6 +122,32 @@ class PipelineMonitorJob:
             else:
                 raise
 
+    def _send_alert_to_teams(
+        self, message: str, extra_text: Optional[str] = None
+    ):
+        """
+        Send an alert to MS Teams.
+
+        Parameters
+        ----------
+        message : str
+        extra_text : Optional[str]
+
+        """
+
+        post_request_contents = create_body_contents(
+            message=message, extra_text=extra_text
+        )
+        response = requests.post(
+            url=self.job_settings.alert_url, json=post_request_contents
+        )
+        if response.status_code == 200:
+            logging.info(f"Alert response: {response.json()}")
+        else:
+            logging.warning(
+                f"There was an issue sending the alert: {response}"
+            )
+
     def _get_input_data_name(self) -> Optional[str]:
         """Get the name of the input data asset from the run_params"""
 
@@ -173,7 +201,9 @@ class PipelineMonitorJob:
         else:
             return None
 
-    def _get_name(self, computation: Computation) -> str:
+    def _get_name(
+        self, computation: Computation, input_data_name: Optional[str]
+    ) -> str:
         """
         Get a data asset name. Will try to use the name from a
         data_description.json file. If file does not exist, then will build a
@@ -188,6 +218,8 @@ class PipelineMonitorJob:
           extract the data_asset_name from that file if found. Otherwise, this
           method will construct a default name using the input data_asset and
           the current datetime in utc.
+        input_data_name : Optional[str]
+          Name of the input data asset. The computation only stores the id.
 
         Returns
         -------
@@ -197,7 +229,7 @@ class PipelineMonitorJob:
 
         capture_params = self.job_settings.capture_settings
         dt = datetime.now(tz=ZoneInfo("UTC"))
-        input_data_name = self._get_input_data_name()
+        # input_data_name = self._get_input_data_name()
         suffix = capture_params.process_name_suffix
         dt_suffix = dt.strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -225,7 +257,9 @@ class PipelineMonitorJob:
             return default_name
 
     def _build_data_asset_params(
-        self, monitor_pipeline_response: Computation
+        self,
+        monitor_pipeline_response: Computation,
+        input_data_name: Optional[str],
     ) -> DataAssetParams:
         """
         Build DataAssetParams model from CapturedDataAssetParams and
@@ -236,6 +270,7 @@ class PipelineMonitorJob:
         monitor_pipeline_response : Computation
           The Computation from monitor_pipeline_response. If Target is set to
           AWSS3Target, prefix will be overridden with data asset name.
+        input_data_name : Optional[str]
 
         Returns
         -------
@@ -245,7 +280,10 @@ class PipelineMonitorJob:
         if self.job_settings.capture_settings.name is not None:
             data_asset_name = self.job_settings.capture_settings.name
         else:
-            data_asset_name = self._get_name(monitor_pipeline_response)
+            data_asset_name = self._get_name(
+                computation=monitor_pipeline_response,
+                input_data_name=input_data_name,
+            )
         if self.job_settings.capture_settings.mount is not None:
             data_asset_mount = self.job_settings.capture_settings.mount
         else:
@@ -281,34 +319,59 @@ class PipelineMonitorJob:
         None, then will capture result.
         """
 
-        logging.info(f"Starting job with: {self.job_settings}")
-        start_pipeline_response = self.client.computations.run_capsule(
-            self.job_settings.run_params
-        )
-        logging.info(f"start_pipeline_response: {start_pipeline_response}")
-        monitor_pipeline_response = self._monitor_pipeline(
-            start_pipeline_response
-        )
-        logging.info(f"monitor_pipeline_response: {monitor_pipeline_response}")
-        if self.job_settings.capture_settings is not None:
-            logging.info("Capturing result")
-            data_asset_params = self._build_data_asset_params(
-                monitor_pipeline_response=monitor_pipeline_response
+        input_data_name = self._get_input_data_name()
+        try:
+            logging.info(
+                f"Starting job with: {self.job_settings}. "
+                f"Input data: {input_data_name}"
             )
-            capture_result_response = (
-                self.client.data_assets.create_data_asset(
-                    data_asset_params=data_asset_params
-                )
+            if self.job_settings.alert_url is not None:
+                message = f"Starting {input_data_name}"
+                self._send_alert_to_teams(message=message)
+
+            start_pipeline_response = self.client.computations.run_capsule(
+                self.job_settings.run_params
             )
-            logging.info(f"capture_result_response: {capture_result_response}")
-            wait_for_data_asset = self._wait_for_data_asset(
-                create_data_asset_response=capture_result_response
+            logging.info(f"start_pipeline_response: {start_pipeline_response}")
+            monitor_pipeline_response = self._monitor_pipeline(
+                start_pipeline_response
             )
             logging.info(
-                f"wait_for_data_asset_response: {wait_for_data_asset}"
+                f"monitor_pipeline_response: {monitor_pipeline_response}"
             )
-            self.client.data_assets.update_permissions(
-                data_asset_id=capture_result_response.id,
-                permissions=self.job_settings.capture_settings.permissions,
-            )
-        logging.info("Finished job.")
+            if self.job_settings.capture_settings is not None:
+                logging.info("Capturing result")
+                data_asset_params = self._build_data_asset_params(
+                    monitor_pipeline_response=monitor_pipeline_response,
+                    input_data_name=input_data_name,
+                )
+                capture_result_response = (
+                    self.client.data_assets.create_data_asset(
+                        data_asset_params=data_asset_params
+                    )
+                )
+                logging.info(
+                    f"capture_result_response: {capture_result_response}"
+                )
+                wait_for_data_asset = self._wait_for_data_asset(
+                    create_data_asset_response=capture_result_response
+                )
+                logging.info(
+                    f"wait_for_data_asset_response: {wait_for_data_asset}"
+                )
+                self.client.data_assets.update_permissions(
+                    data_asset_id=capture_result_response.id,
+                    permissions=self.job_settings.capture_settings.permissions,
+                )
+            logging.info("Finished job.")
+            if self.job_settings.alert_url is not None:
+                message = f"Finished {input_data_name}"
+                self._send_alert_to_teams(message=message)
+        except Exception as e:
+            if self.job_settings.alert_url is not None:
+                message = f"Error with {input_data_name}"
+                extra_text = f"Message: {e.args}"
+                self._send_alert_to_teams(
+                    message=message, extra_text=extra_text
+                )
+            raise e
