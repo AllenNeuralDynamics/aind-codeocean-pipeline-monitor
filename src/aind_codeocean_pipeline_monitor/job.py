@@ -229,7 +229,6 @@ class PipelineMonitorJob:
 
         capture_params = self.job_settings.capture_settings
         dt = datetime.now(tz=ZoneInfo("UTC"))
-        # input_data_name = self._get_input_data_name()
         suffix = capture_params.process_name_suffix
         dt_suffix = dt.strftime("%Y-%m-%d_%H-%M-%S")
 
