@@ -58,6 +58,13 @@ class PipelineMonitorSettings(BaseSettings):
     finished.
     """
 
+    alert_url: Optional[str] = Field(
+        default=None,
+        description=(
+            "URL to send alerts to an MS Teams channel. "
+            "If None, no alert will be sent."
+        ),
+    )
     computation_polling_interval: int = Field(
         default=180,
         description=(
