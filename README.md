@@ -22,17 +22,34 @@ from aind_codeocean_pipeline_monitor.models import (
     PipelineMonitorSettings,
 )
 
+from codeocean.capsule import Capsules
+from codeocean.data_asset import DataAssets
 from codeocean.computation import (
+    Computations,
     DataAssetsRunParam,
     RunParams,
 )
 from codeocean import CodeOcean
 import os
+from urllib3.util import Retry
+from requests.adapters import HTTPAdapter
+
 
 domain = os.getenv("CODEOCEAN_DOMAIN")
 token = os.getenv("CODEOCEAN_TOKEN")
-
-codeocean = CodeOcean(domain=domain, token=token)
+client = CodeOcean(domain=domain, token=token)
+# Recommend adding retry strategy to requests session
+retry = Retry(
+    total=5,
+    backoff_jitter=0.5,
+    backoff_factor=1,
+    status_forcelist=[429, 500, 502, 503, 504],
+)
+adapter = HTTPAdapter(max_retries=retry)
+client.session.mount(domain, adapter)
+client.capsules = Capsules(client.session)
+client.computations = Computations(client.session)
+client.data_assets = DataAssets(client.session)
 
 # Please consult Code Ocean docs for info about RunParams and DataAssetParams
 settings = PipelineMonitorSettings(
@@ -50,7 +67,7 @@ settings = PipelineMonitorSettings(
     ),  # 'tags' is the only required field
 )
 
-job = PipelineMonitorJob(settings=settings, client=codeocean)
+job = PipelineMonitorJob(job_settings=settings, client=client)
 job.run_job()
 ```
 

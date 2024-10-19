@@ -19,7 +19,8 @@ from codeocean.data_asset import (  # noqa: F401
     ResultsInfo,
     Target,
 )
-from pydantic import Field
+from pydantic import Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings
 
 
@@ -65,20 +66,35 @@ class PipelineMonitorSettings(BaseSettings):
             "If None, no alert will be sent."
         ),
     )
-    computation_polling_interval: int = Field(
+    computation_polling_interval: float = Field(
         default=180,
         description=(
             "Time in seconds in between checks that the pipeline is finished."
         ),
         gte=5,
     )
-    data_asset_ready_polling_interval: int = Field(
+    computation_timeout: Optional[float] = Field(
+        default=None,
+        description=(
+            "Optional timeout in seconds. If timeout exceeds, will terminate "
+            "pipeline run and raise an error. Set to None to wait "
+            "indefinitely."
+        ),
+    )
+    data_asset_ready_polling_interval: float = Field(
         default=10,
         description=(
             "Time in seconds in between checks that the captured data asset "
             "is ready."
         ),
         gte=5,
+    )
+    data_asset_ready_timeout: Optional[float] = Field(
+        default=None,
+        description=(
+            "Optional timeout in seconds. If timeout exceeds, will raise an "
+            "error. Set to None to wait indefinitely."
+        ),
     )
     run_params: RunParams = Field(
         ..., description="Parameters for running a pipeline"
@@ -90,3 +106,37 @@ class PipelineMonitorSettings(BaseSettings):
             "then will not capture results."
         ),
     )
+
+    @field_validator("computation_timeout")
+    def validate_computation_timeout(cls, v, info: ValidationInfo):
+        """Validates computation_timeout is greater than
+        computation_polling_interval"""
+
+        if (
+            "computation_polling_interval" in info.data
+            and v is not None
+            and v <= info.data["computation_polling_interval"]
+        ):
+            polling_interval = info.data["computation_polling_interval"]
+            raise ValueError(
+                f"computation_timeout {v} is "
+                f"not greater than computation_polling_interval "
+                f"{polling_interval}!"
+            )
+
+    @field_validator("data_asset_ready_timeout")
+    def validate_data_asset_ready_timeout(cls, v, info: ValidationInfo):
+        """Validates data_asset_ready_timeout is greater than
+        data_asset_ready_polling_interval"""
+
+        if (
+            "data_asset_ready_polling_interval" in info.data
+            and v is not None
+            and v <= info.data["data_asset_ready_polling_interval"]
+        ):
+            polling_interval = info.data["data_asset_ready_polling_interval"]
+            raise ValueError(
+                f"data_asset_ready_timeout {v} is "
+                f"not greater than data_asset_ready_polling_interval "
+                f"{polling_interval}!"
+            )
