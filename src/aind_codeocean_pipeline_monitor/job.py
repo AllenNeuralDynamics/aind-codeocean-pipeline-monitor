@@ -22,20 +22,8 @@ from codeocean.data_asset import (
     Source,
     Target,
 )
-from requests.exceptions import HTTPError
-from tenacity import (
-    retry,
-    retry_if_exception_type,
-    stop_after_attempt,
-    wait_exponential,
-    wait_random,
-)
 
 from aind_codeocean_pipeline_monitor.models import PipelineMonitorSettings
-
-
-class TooManyRequests(Exception):
-    """Too many requests Exception"""
 
 
 class PipelineMonitorJob:
@@ -48,11 +36,6 @@ class PipelineMonitorJob:
         self.job_settings = job_settings
         self.client = client
 
-    @retry(
-        retry=retry_if_exception_type(TooManyRequests),
-        wait=wait_exponential(multiplier=1, min=8, max=32) + wait_random(0, 5),
-        stop=stop_after_attempt(7),
-    )
     def _monitor_pipeline(self, computation: Computation) -> Computation:
         """
         Monitor a pipeline. Will retry requests if TooManyRequests.
@@ -73,6 +56,7 @@ class PipelineMonitorJob:
                     polling_interval=(
                         self.job_settings.computation_polling_interval
                     ),
+                    timeout=self.job_settings.computation_timeout,
                 )
             )
             if wait_until_completed_response.state == ComputationState.Failed:
@@ -80,17 +64,16 @@ class PipelineMonitorJob:
                     f"The pipeline run failed: {wait_until_completed_response}"
                 )
             return wait_until_completed_response
-        except HTTPError as err:
-            if err.response.status_code == 429:
-                raise TooManyRequests
-            else:
-                raise
+        except TimeoutError as e:
+            logging.error(
+                f"Computation timeout reached: {e.args}, attempting to "
+                f"terminate pipeline"
+            )
+            self.client.computations.delete_computation(
+                computation_id=computation.id
+            )
+            raise e
 
-    @retry(
-        retry=retry_if_exception_type(TooManyRequests),
-        wait=wait_exponential(multiplier=1, min=8, max=32) + wait_random(0, 5),
-        stop=stop_after_attempt(7),
-    )
     def _wait_for_data_asset(self, create_data_asset_response) -> DataAsset:
         """
         Wait for data asset to be available. Will retry if TooManyRequests.
@@ -102,25 +85,18 @@ class PipelineMonitorJob:
         -------
 
         """
-        try:
-            wait_until_ready_response = (
-                self.client.data_assets.wait_until_ready(
-                    data_asset=create_data_asset_response,
-                    polling_interval=(
-                        self.job_settings.data_asset_ready_polling_interval
-                    ),
-                )
+        wait_until_ready_response = self.client.data_assets.wait_until_ready(
+            data_asset=create_data_asset_response,
+            polling_interval=(
+                self.job_settings.data_asset_ready_polling_interval
+            ),
+            timeout=self.job_settings.data_asset_ready_timeout,
+        )
+        if wait_until_ready_response.state == DataAssetState.Failed:
+            raise Exception(
+                f"Data asset creation failed: {wait_until_ready_response}"
             )
-            if wait_until_ready_response.state == DataAssetState.Failed:
-                raise Exception(
-                    f"Data asset creation failed: {wait_until_ready_response}"
-                )
-            return wait_until_ready_response
-        except HTTPError as err:
-            if err.response.status_code == 429:
-                raise TooManyRequests
-            else:
-                raise
+        return wait_until_ready_response
 
     def _send_alert_to_teams(
         self, message: str, extra_text: Optional[str] = None

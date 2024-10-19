@@ -5,6 +5,7 @@ import unittest
 
 from codeocean.computation import RunParams
 from codeocean.data_asset import AWSS3Target, Target
+from pydantic import ValidationError
 
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
@@ -86,6 +87,28 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
             expected_model_json,
             json.loads(settings.model_dump_json(exclude_none=True)),
         )
+
+    def test_validator_fail_1(self):
+        """Tests validation fails if computation timeout less than polling
+        interval"""
+        capture_settings = CaptureSettings(
+            tags=["derived, 123456, ecephys"],
+            custom_metadata={"data level": "derived"},
+        )
+        run_params = RunParams(pipeline_id="abc-123", version=2)
+        with self.assertRaises(ValidationError) as e:
+            PipelineMonitorSettings(
+                capture_settings=capture_settings,
+                run_params=run_params,
+                computation_polling_interval=100,
+                computation_timeout=90,
+                data_asset_ready_polling_interval=120,
+                data_asset_ready_timeout=120,
+            )
+        errors = json.loads(e.exception.json())
+        self.assertEqual(2, len(errors))
+        self.assertIn("computation_timeout", errors[0]["msg"])
+        self.assertIn("data_asset_ready_timeout", errors[1]["msg"])
 
 
 if __name__ == "__main__":

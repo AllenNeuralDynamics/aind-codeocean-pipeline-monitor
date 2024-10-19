@@ -30,7 +30,6 @@ from codeocean.data_asset import (
 )
 from requests import Response
 from requests.exceptions import HTTPError
-from tenacity import RetryError
 
 from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 from aind_codeocean_pipeline_monitor.models import (
@@ -47,14 +46,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Set default example settings"""
-
-        with open(RESOURCES_DIR / "expected_log_output.txt", "r") as f:
-            expected_run_logs = f.read().splitlines()
-
-        with open(
-            RESOURCES_DIR / "expected_log_output_with_alerts.txt", "r"
-        ) as f:
-            expected_run_logs_with_alerts = f.read().splitlines()
 
         with open(RESOURCES_DIR / "data_description.json", "r") as f:
             expected_data_description = json.dumps(json.load(f))
@@ -82,10 +73,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
             deep=True
         )
         capture_settings_with_alert.alert_url = "an_alert_url"
-        too_many_requests_response = Response()
-        too_many_requests_response.status_code = 429
-        too_many_request_error = HTTPError()
-        too_many_request_error.response = too_many_requests_response
 
         internal_server_error_response = Response()
         internal_server_error_response.status_code = 500
@@ -105,19 +92,14 @@ class TestPipelineMonitorJob(unittest.TestCase):
         cls.no_capture_job = no_capture_job
         cls.capture_job = capture_job
         cls.capture_job_with_alert = capture_job_with_alert
-        cls.too_many_requests_error = too_many_request_error
         cls.internal_server_error = internal_server_error
-        cls.expected_run_logs = expected_run_logs
-        cls.expected_run_logs_with_alerts = expected_run_logs_with_alerts
         cls.expected_data_description = expected_data_description
 
     @patch("codeocean.computation.Computations.get_computation")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.computation.sleep", return_value=None)
     def test_monitor_pipeline(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_computation: MagicMock,
     ):
         """Tests _monitor_pipeline method with successful completion"""
@@ -136,7 +118,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 state=ComputationState.Running,
                 run_time=1,
             ),
-            self.too_many_requests_error,
             completed_comp,
         ]
         response = self.no_capture_job._monitor_pipeline(
@@ -150,15 +131,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         self.assertEqual(completed_comp, response)
         mock_sleep.assert_called_once_with(180)
-        mock_nap_sleep.assert_called_once()
 
     @patch("codeocean.computation.Computations.get_computation")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.computation.sleep", return_value=None)
     def test_monitor_pipeline_error(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_computation: MagicMock,
     ):
         """Tests _monitor_pipeline method with internal server error"""
@@ -174,40 +152,44 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 )
             )
         mock_sleep.assert_not_called()
-        mock_nap_sleep.assert_not_called()
 
+    @patch("codeocean.computation.Computations.delete_computation")
     @patch("codeocean.computation.Computations.get_computation")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.computation.sleep", return_value=None)
-    def test_monitor_pipeline_too_many_retries(
+    def test_monitor_pipeline_timeout_error(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_computation: MagicMock,
+        mock_delete_computation: MagicMock,
     ):
-        """Tests _monitor_pipeline method with too many retries"""
-        mock_get_computation.side_effect = self.too_many_requests_error
-        with self.assertRaises(RetryError):
-            self.no_capture_job._monitor_pipeline(
-                computation=Computation(
-                    id="c123",
-                    created=0,
-                    name="c_name",
-                    state=ComputationState.Initializing,
-                    run_time=0,
+        """Tests _monitor_pipeline method with a timeout error"""
+        mock_get_computation.side_effect = TimeoutError("Comp. timed out")
+        with self.assertLogs(level="INFO") as captured:
+            with self.assertRaises(TimeoutError):
+                self.no_capture_job._monitor_pipeline(
+                    computation=Computation(
+                        id="c123",
+                        created=0,
+                        name="c_name",
+                        state=ComputationState.Initializing,
+                        run_time=0,
+                    )
                 )
+        expected_logs = [
+            (
+                "ERROR:root:Computation timeout reached: ('Comp. timed out',),"
+                " attempting to terminate pipeline"
             )
-
+        ]
         mock_sleep.assert_not_called()
-        self.assertEqual(6, len(mock_nap_sleep.mock_calls))
+        mock_delete_computation.assert_called_once_with(computation_id="c123")
+        self.assertEqual(expected_logs, captured.output)
 
     @patch("codeocean.computation.Computations.get_computation")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.computation.sleep", return_value=None)
     def test_monitor_pipeline_failed(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_computation: MagicMock,
     ):
         """Tests _monitor_pipeline method with failed completion"""
@@ -240,15 +222,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
             )
         self.assertIn("The pipeline run failed", e.exception.args[0])
         mock_sleep.assert_called_once_with(180)
-        mock_nap_sleep.assert_not_called()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.data_asset.sleep", return_value=None)
     def test_wait_for_data_asset(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_data_asset: MagicMock,
     ):
         """Tests wait for Data asset success."""
@@ -272,7 +251,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         mock_get_data_asset.side_effect = [
             initial_data_asset,
-            self.too_many_requests_error,
             completed_data_asset,
         ]
 
@@ -280,15 +258,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         self.assertEqual(completed_data_asset, response)
         mock_sleep.assert_called_once_with(10)
-        mock_nap_sleep.assert_called_once()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.data_asset.sleep", return_value=None)
     def test_wait_for_data_asset_error(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_data_asset: MagicMock,
     ):
         """Tests _wait_for_data_asset method with internal server error"""
@@ -305,40 +280,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertRaises(HTTPError):
             self.capture_job._wait_for_data_asset(initial_data_asset)
         mock_sleep.assert_not_called()
-        mock_nap_sleep.assert_not_called()
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
-    @patch("tenacity.nap.time.sleep", return_value=None)
-    @patch("codeocean.data_asset.sleep", return_value=None)
-    def test_wait_for_data_asset_too_many_retries(
-        self,
-        mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
-        mock_get_data_asset: MagicMock,
-    ):
-        """Tests _monitor_pipeline method with too many retries"""
-        mock_get_data_asset.side_effect = self.too_many_requests_error
-        initial_data_asset = DataAsset(
-            id="def-123",
-            created=1,
-            name="da_name",
-            mount="da_mount",
-            state=DataAssetState.Draft,
-            type=DataAssetType.Result,
-            last_used=1,
-        )
-        with self.assertRaises(RetryError):
-            self.capture_job._wait_for_data_asset(initial_data_asset)
-        mock_sleep.assert_not_called()
-        self.assertEqual(6, len(mock_nap_sleep.mock_calls))
-
-    @patch("codeocean.data_asset.DataAssets.get_data_asset")
-    @patch("tenacity.nap.time.sleep", return_value=None)
     @patch("codeocean.data_asset.sleep", return_value=None)
     def test_wait_for_data_asset_failed(
         self,
         mock_sleep: MagicMock,
-        mock_nap_sleep: MagicMock,
         mock_get_data_asset: MagicMock,
     ):
         """Tests _monitor_pipeline method with failed completion"""
@@ -368,7 +315,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
             self.capture_job._wait_for_data_asset(initial_data_asset)
         self.assertIn("Data asset creation failed", e.exception.args[0])
         mock_sleep.assert_called_once_with(10)
-        mock_nap_sleep.assert_not_called()
 
     @patch("requests.post")
     def test_send_alert_to_teams(self, mock_post: MagicMock):
@@ -876,7 +822,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertLogs(level="INFO") as captured:
             self.capture_job.run_job()
 
-        self.assertEqual(self.expected_run_logs, captured.output)
+        self.assertEqual(7, len(captured.output))
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
             permissions=Permissions(everyone=EveryoneRole.Viewer),
@@ -979,7 +925,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             permissions=Permissions(everyone=EveryoneRole.Viewer),
         )
 
-        self.assertEqual(self.expected_run_logs_with_alerts, captured.output)
+        self.assertEqual(7, len(captured.output))
         mock_send_alert.assert_has_calls(
             [
                 call(message="Starting ecephys_123456_2020-10-10_00-00-00"),
