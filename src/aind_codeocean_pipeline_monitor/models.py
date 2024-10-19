@@ -123,6 +123,7 @@ class PipelineMonitorSettings(BaseSettings):
                 f"not greater than computation_polling_interval "
                 f"{polling_interval}!"
             )
+        return v
 
     @field_validator("data_asset_ready_timeout")
     def validate_data_asset_ready_timeout(cls, v, info: ValidationInfo):
@@ -140,3 +141,4 @@ class PipelineMonitorSettings(BaseSettings):
                 f"not greater than data_asset_ready_polling_interval "
                 f"{polling_interval}!"
             )
+        return v

@@ -88,7 +88,25 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
             json.loads(settings.model_dump_json(exclude_none=True)),
         )
 
-    def test_validator_fail_1(self):
+    def test_validator_success(self):
+        """Tests validation success"""
+        capture_settings = CaptureSettings(
+            tags=["derived, 123456, ecephys"],
+            custom_metadata={"data level": "derived"},
+        )
+        run_params = RunParams(pipeline_id="abc-123", version=2)
+        settings = PipelineMonitorSettings(
+            capture_settings=capture_settings,
+            run_params=run_params,
+            computation_polling_interval=100,
+            computation_timeout=200,
+            data_asset_ready_polling_interval=120,
+            data_asset_ready_timeout=2000,
+        )
+        self.assertEqual(float(2000), settings.data_asset_ready_timeout)
+        self.assertEqual(float(200), settings.computation_timeout)
+
+    def test_validator_fail(self):
         """Tests validation fails if computation timeout less than polling
         interval"""
         capture_settings = CaptureSettings(
