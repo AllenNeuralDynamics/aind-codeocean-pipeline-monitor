@@ -4,13 +4,13 @@ import json
 import logging
 import re
 from datetime import datetime
-from typing import Optional
+from typing import Dict, Optional
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import requests
 from aind_alert_utils.teams import create_body_contents
-from aind_data_schema_models.data_name_patterns import DataRegex
+from aind_data_schema_models.data_name_patterns import DataLevel, DataRegex
 from codeocean import CodeOcean
 from codeocean.computation import Computation, ComputationState
 from codeocean.data_asset import (
@@ -137,12 +137,12 @@ class PipelineMonitorJob:
         else:
             return None
 
-    def _get_name_from_data_description(
+    def _get_name_and_level_from_data_description(
         self, computation: Computation
-    ) -> Optional[str]:
+    ) -> Dict[str, Optional[str]]:
         """
         Attempts to download a data_description file from the 'results' folder
-        and then extracts the 'name' from that file.
+        and then extracts the 'name' and 'data_level' from that file.
 
         Parameters
         ----------
@@ -150,8 +150,8 @@ class PipelineMonitorJob:
 
         Returns
         -------
-        str | None
-          The name from that data_description file if found, otherwise None.
+        Dict[str, Optional[str]]
+          {'name': Optional[str], 'data_level': Optional[str]}
 
         """
 
@@ -173,9 +173,12 @@ class PipelineMonitorJob:
             with urlopen(download_url.url) as f:
                 contents = f.read().decode("utf-8")
             data_description = json.loads(contents)
-            return data_description.get("name")
+            return {
+                "name": data_description.get("name"),
+                "data_level": data_description.get("data_level"),
+            }
         else:
-            return None
+            return {"name": None, "data_level": None}
 
     def _get_name(
         self, computation: Computation, input_data_name: Optional[str]
@@ -214,10 +217,19 @@ class PipelineMonitorJob:
 
         default_name = f"{input_data_name}_{suffix}_{dt_suffix}"
 
-        name_from_file = self._get_name_from_data_description(
+        info_from_file = self._get_name_and_level_from_data_description(
             computation=computation
         )
-        if (
+        name_from_file = info_from_file.get("name")
+        level_from_file = info_from_file.get("data_level")
+        if level_from_file != DataLevel.DERIVED.value:
+            logging.warning(
+                f"Data level in data description {level_from_file} "
+                f"does not match expected pattern! Ignoring name in data "
+                f"description and will attempt to set a default name."
+            )
+            name_from_file = None
+        elif (
             name_from_file is not None
             and re.match(DataRegex.DERIVED.value, name_from_file) is None
         ):

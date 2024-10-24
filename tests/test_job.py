@@ -403,7 +403,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             "utf-8"
         )
         mock_url_open.return_value.__enter__.return_value = mock_read
-        name = self.capture_job._get_name_from_data_description(
+        info = self.capture_job._get_name_and_level_from_data_description(
             computation=Computation(
                 id="c123",
                 created=0,
@@ -412,10 +412,13 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 run_time=100,
             )
         )
-        expected_name_from_file = (
-            "ecephys_709351_2024-04-10_14-53-09_sorted_2024-04-19_23-19-34"
-        )
-        self.assertEqual(expected_name_from_file, name)
+        expected_info_from_file = {
+            "data_level": "derived",
+            "name": (
+                "ecephys_709351_2024-04-10_14-53-09_sorted_2024-04-19_23-19-34"
+            ),
+        }
+        self.assertEqual(expected_info_from_file, info)
 
     @patch("codeocean.computation.Computations.list_computation_results")
     @patch("codeocean.computation.Computations.get_result_file_download_url")
@@ -432,7 +435,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 FolderItem(name="output", path="output", type=""),
             ]
         )
-        name = self.capture_job._get_name_from_data_description(
+        info = self.capture_job._get_name_and_level_from_data_description(
             computation=Computation(
                 id="c123",
                 created=0,
@@ -441,7 +444,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 run_time=100,
             )
         )
-        self.assertIsNone(name)
+        expected_info = {"name": None, "data_level": None}
+        self.assertEqual(expected_info, info)
         mock_url_open.assert_not_called()
         mock_get_result_file_url.assert_not_called()
 
@@ -452,18 +456,21 @@ class TestPipelineMonitorJob(unittest.TestCase):
     )
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._get_name_from_data_description"
+        "._get_name_and_level_from_data_description"
     )
     def test_get_name(
         self,
-        mock_get_name_from_data_description: MagicMock,
+        mock_get_info_from_data_description: MagicMock,
         mock_get_input_data_name: MagicMock,
         mock_dt: MagicMock,
     ):
         """Tests _get_name from settings"""
 
         input_data_name = "ecephys_123456_2020-10-10_00-00-00"
-        mock_get_name_from_data_description.return_value = None
+        mock_get_info_from_data_description.return_value = {
+            "name": None,
+            "data_level": None,
+        }
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
             id="c123",
@@ -472,14 +479,24 @@ class TestPipelineMonitorJob(unittest.TestCase):
             state=ComputationState.Completed,
             run_time=100,
         )
-        name = self.capture_job._get_name(
-            computation=completed_comp, input_data_name=input_data_name
-        )
+        with self.assertLogs() as captured:
+
+            name = self.capture_job._get_name(
+                computation=completed_comp, input_data_name=input_data_name
+            )
+        expected_captured = [
+            (
+                "WARNING:root:Data level in data description None does not "
+                "match expected pattern! Ignoring name in data description "
+                "and will attempt to set a default name."
+            )
+        ]
         expected_name = (
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         self.assertEqual(expected_name, name)
         mock_get_input_data_name.assert_not_called()
+        self.assertEqual(expected_captured, captured.output)
 
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
     @patch(
@@ -488,19 +505,23 @@ class TestPipelineMonitorJob(unittest.TestCase):
     )
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._get_name_from_data_description"
+        "._get_name_and_level_from_data_description"
     )
     def test_get_name_from_dd(
         self,
-        mock_get_name_from_data_description: MagicMock,
+        mock_get_info_from_data_description: MagicMock,
         mock_get_input_data_name: MagicMock,
         mock_dt: MagicMock,
     ):
         """Tests _get_name from data_description file"""
 
-        mock_get_name_from_data_description.return_value = (
-            "ecephys_123456_2020-10-10_00-00-00_sorted_2020-11-10_00-00-00"
-        )
+        mock_get_info_from_data_description.return_value = {
+            "name": (
+                "ecephys_123456_2020-10-10_00-00-00"
+                "_sorted_2020-11-10_00-00-00"
+            ),
+            "data_level": "derived",
+        }
         input_data_name = "ecephys_123456_2020-10-10_00-00-00"
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
@@ -526,20 +547,21 @@ class TestPipelineMonitorJob(unittest.TestCase):
     )
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._get_name_from_data_description"
+        "._get_name_and_level_from_data_description"
     )
     def test_get_name_from_dd_bad_format(
         self,
-        mock_get_name_from_data_description: MagicMock,
+        mock_get_name_and_level_from_data_description: MagicMock,
         mock_get_input_data_name: MagicMock,
         mock_dt: MagicMock,
     ):
         """Tests _get_name from data_description file when name in file is
         not in the correct format."""
 
-        mock_get_name_from_data_description.return_value = (
-            "ecephys_123456_2020-10-1_sorted_2020-11-10_00-00-00"
-        )
+        mock_get_name_and_level_from_data_description.return_value = {
+            "name": "ecephys_123456_2020-10-1_sorted_2020-11-10_00-00-00",
+            "data_level": "derived",
+        }
         input_data_name = "ecephys_123456_2020-10-10_00-00-00"
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
@@ -573,18 +595,21 @@ class TestPipelineMonitorJob(unittest.TestCase):
     )
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._get_name_from_data_description"
+        "._get_name_and_level_from_data_description"
     )
     def test_get_name_error(
         self,
-        mock_get_name_from_data_description: MagicMock,
+        mock_get_name_and_level_from_data_description: MagicMock,
         mock_get_input_data_name: MagicMock,
         mock_dt: MagicMock,
     ):
         """Tests _get_name when input data name is None and data_description
         name is None"""
 
-        mock_get_name_from_data_description.return_value = None
+        mock_get_name_and_level_from_data_description.return_value = {
+            "name": None,
+            "data_level": "derived",
+        }
         mock_dt.now.return_value = datetime(2020, 11, 10)
         completed_comp = Computation(
             id="c123",
@@ -603,9 +628,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         mock_get_input_data_name.assert_not_called()
 
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
-    )
+    @patch("aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._get_name")
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
     def test_build_data_asset_params(
         self, mock_dt: MagicMock, mock_get_name: MagicMock
@@ -640,9 +663,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         self.assertEqual(expected_params, params)
 
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
-    )
+    @patch("aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._get_name")
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
     def test_build_data_asset_params_with_name_mount(
         self, mock_dt: MagicMock, mock_get_name: MagicMock
@@ -681,9 +702,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         self.assertEqual(expected_params, params)
 
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob" "._get_name"
-    )
+    @patch("aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._get_name")
     @patch("aind_codeocean_pipeline_monitor.job.datetime")
     def test_build_data_asset_params_with_target(
         self, mock_dt: MagicMock, mock_get_name: MagicMock
