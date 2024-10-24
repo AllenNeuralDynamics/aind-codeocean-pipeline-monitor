@@ -222,7 +222,7 @@ class PipelineMonitorJob:
         )
         name_from_file = info_from_file.get("name")
         level_from_file = info_from_file.get("data_level")
-        if level_from_file != DataLevel.DERIVED:
+        if level_from_file != DataLevel.DERIVED.value:
             logging.warning(
                 f"Data level in data description {level_from_file} "
                 f"does not match expected pattern! Ignoring name in data "
