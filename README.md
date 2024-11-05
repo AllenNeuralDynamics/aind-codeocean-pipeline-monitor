@@ -32,23 +32,17 @@ pip install -e .[dev]
 - Run the job with the run_job method.
 
 ```python
+import os
+
+from codeocean import CodeOcean
+from codeocean.computation import DataAssetsRunParam, RunParams
+from urllib3.util import Retry
+
 from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
     PipelineMonitorSettings,
 )
-
-from codeocean.capsule import Capsules
-from codeocean.data_asset import DataAssets
-from codeocean.computation import (
-    Computations,
-    DataAssetsRunParam,
-    RunParams,
-)
-from codeocean import CodeOcean
-import os
-from urllib3.util import Retry
-
 
 domain = os.getenv("CODEOCEAN_DOMAIN")
 token = os.getenv("CODEOCEAN_TOKEN")
@@ -57,7 +51,7 @@ retry = Retry(
     total=5,
     backoff_factor=1,
     status_forcelist=[429, 500, 502, 503, 504],
-    allowed_methods=["GET", "POST"]
+    allowed_methods=["GET", "POST"],
 )
 client = CodeOcean(domain=domain, token=token, retries=retry)
 
