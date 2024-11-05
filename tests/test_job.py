@@ -31,7 +31,6 @@ from codeocean.data_asset import (
 from requests import Response
 from requests.exceptions import HTTPError
 
-from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
     PipelineMonitorSettings,
@@ -46,6 +45,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         """Set default example settings"""
+        from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 
         with open(RESOURCES_DIR / "data_description.json", "r") as f:
             expected_data_description = json.dumps(json.load(f))
@@ -670,6 +670,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
     ):
         """Tests _build_data_asset_params method when name and mount are set"""
 
+        from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
+
         mock_get_name.return_value = (
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
@@ -708,6 +710,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self, mock_dt: MagicMock, mock_get_name: MagicMock
     ):
         """Tests _build_data_asset_params method when target is set"""
+
+        from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 
         mock_dt.now.return_value = datetime(2020, 11, 10)
         mock_get_name.return_value = (

@@ -9,8 +9,16 @@ from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import requests
-from aind_alert_utils.teams import create_body_contents
-from aind_data_schema_models.data_name_patterns import DataLevel, DataRegex
+
+try:
+    from aind_alert_utils.teams import create_body_contents
+    from aind_data_schema_models.data_name_patterns import DataLevel, DataRegex
+except ModuleNotFoundError:
+    raise ModuleNotFoundError(
+        "Running jobs requires all dependencies: \n"
+        "  'pip install aind-codeocean-pipeline-monitor[full]'\n"
+        "See README for more information."
+    )
 from codeocean import CodeOcean
 from codeocean.computation import Computation, ComputationState
 from codeocean.data_asset import (
