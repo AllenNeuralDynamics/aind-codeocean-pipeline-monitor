@@ -9,6 +9,22 @@
 
 Package for starting a pipeline, waiting for it to finish, and optionally capturing the results as a data asset.
 
+## Installation
+The repo can be install from PyPI. To pip install all of the necessary dependencies to run the pipeline monitor, run:
+```bash
+pip install .[full]
+```
+
+To install only the minimum dependencies required for model validation, run:
+```bash
+pip install .
+```
+
+To install the package for development, run
+```bash
+pip install -e .[dev]
+```
+
 ## Usage
 - Define job using PipelineMonitorJobSettings class.
 - Define a CodeOcean client.
@@ -16,40 +32,28 @@ Package for starting a pipeline, waiting for it to finish, and optionally captur
 - Run the job with the run_job method.
 
 ```python
+import os
+
+from codeocean import CodeOcean
+from codeocean.computation import DataAssetsRunParam, RunParams
+from urllib3.util import Retry
+
 from aind_codeocean_pipeline_monitor.job import PipelineMonitorJob
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
     PipelineMonitorSettings,
 )
 
-from codeocean.capsule import Capsules
-from codeocean.data_asset import DataAssets
-from codeocean.computation import (
-    Computations,
-    DataAssetsRunParam,
-    RunParams,
-)
-from codeocean import CodeOcean
-import os
-from urllib3.util import Retry
-from requests.adapters import HTTPAdapter
-
-
 domain = os.getenv("CODEOCEAN_DOMAIN")
 token = os.getenv("CODEOCEAN_TOKEN")
-client = CodeOcean(domain=domain, token=token)
 # Recommend adding retry strategy to requests session
 retry = Retry(
     total=5,
-    backoff_jitter=0.5,
     backoff_factor=1,
     status_forcelist=[429, 500, 502, 503, 504],
+    allowed_methods=["GET", "POST"],
 )
-adapter = HTTPAdapter(max_retries=retry)
-client.session.mount(domain, adapter)
-client.capsules = Capsules(client.session)
-client.computations = Computations(client.session)
-client.data_assets = DataAssets(client.session)
+client = CodeOcean(domain=domain, token=token, retries=retry)
 
 # Please consult Code Ocean docs for info about RunParams and DataAssetParams
 settings = PipelineMonitorSettings(
@@ -69,18 +73,6 @@ settings = PipelineMonitorSettings(
 
 job = PipelineMonitorJob(job_settings=settings, client=client)
 job.run_job()
-```
-
-
-## Installation
-To use the software, in the root directory, run
-```bash
-pip install -e .
-```
-
-To develop the code, run
-```bash
-pip install -e .[dev]
 ```
 
 ## Contributing
