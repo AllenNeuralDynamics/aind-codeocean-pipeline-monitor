@@ -12,15 +12,15 @@ Package for starting a pipeline, waiting for it to finish, and optionally captur
 ## Installation
 The repo can be install from PyPI. To pip install all of the necessary dependencies to run the pipeline monitor, run:
 ```bash
-pip install .[full]
+pip install aind-codeocean-pipeline-monitor[full]
 ```
 
 To install only the minimum dependencies required for model validation, run:
 ```bash
-pip install .
+pip install aind-codeocean-pipeline-monitor
 ```
 
-To install the package for development, run
+To install the package for development, clone this repo and run
 ```bash
 pip install -e .[dev]
 ```
