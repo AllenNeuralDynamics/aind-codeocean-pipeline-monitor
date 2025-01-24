@@ -15,7 +15,6 @@ from codeocean.computation import (
     DataAssetsRunParam,
     DownloadFileURL,
     Folder,
-    FolderItem,
     RunParams,
 )
 from codeocean.data_asset import (
@@ -28,6 +27,7 @@ from codeocean.data_asset import (
     Source,
     Target,
 )
+from codeocean.folder import FolderItem
 from requests import Response
 from requests.exceptions import HTTPError
 
