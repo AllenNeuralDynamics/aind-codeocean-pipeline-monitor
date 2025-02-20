@@ -15,6 +15,8 @@ from aind_data_schema.core.metadata import (
     ExternalPlatforms,
     create_metadata_json,
 )
+from requests.adapters import HTTPAdapter
+from urllib3.util import Retry
 
 try:
     from aind_alert_utils.teams import create_body_contents
@@ -401,38 +403,47 @@ class PipelineMonitorJob:
             core_jsons=core_metadata_jsons,
         )
         if docdb_settings is not None:
-            docdb_client = MetadataDbClient(
+            retry = Retry(
+                total=3,
+                backoff_factor=20,
+                status_forcelist=[429, 500, 502, 503, 504],
+                allowed_methods=["GET", "POST"],
+            )
+            adapter = HTTPAdapter(max_retries=retry)
+            session = requests.Session()
+            session.mount("https://", adapter)
+            with MetadataDbClient(
                 host=docdb_settings.docdb_api_gateway,
                 database=docdb_settings.docdb_database,
                 collection=docdb_settings.docdb_collection,
-            )
-            # check if record exists
-            filter_query = {"location": location}
-            projection = {"_id": 1, "location": 1, "external_links": 1}
-            records = docdb_client.retrieve_docdb_records(
-                filter_query=filter_query,
-                projection=projection,
-                limit=1,
-                paginate=False,
-            )
-            if len(records) > 0:
-                for record in records:
-                    external_links = set(
-                        record.get("external_links", dict()).get(
-                            ExternalPlatforms.CODEOCEAN, []
-                        )
-                    )
-                    external_links.add(capture_result_response.id)
-                    external_links = sorted(list(external_links))
-                    record["external_links"] = external_links
-                    record["last_modified"] = last_modified
-                    docdb_client.upsert_one_docdb_record(record=record)
-            else:
-                docdb_response = docdb_client.upsert_one_docdb_record(
-                    record=metadata
+                session=session,
+            ) as docdb_client:
+                # check if record exists
+                filter_query = {"location": location}
+                projection = {"_id": 1, "location": 1, "external_links": 1}
+                records = docdb_client.retrieve_docdb_records(
+                    filter_query=filter_query,
+                    projection=projection,
+                    limit=1,
+                    paginate=False,
                 )
-                docdb_response.raise_for_status()
-                logging.info(f"DocDB response: {docdb_response.json()}")
+                if len(records) > 0:
+                    for record in records:
+                        external_links = set(
+                            record.get("external_links", dict()).get(
+                                ExternalPlatforms.CODEOCEAN, []
+                            )
+                        )
+                        external_links.add(capture_result_response.id)
+                        external_links = sorted(list(external_links))
+                        record["external_links"] = external_links
+                        record["last_modified"] = last_modified
+                        docdb_client.upsert_one_docdb_record(record=record)
+                else:
+                    docdb_response = docdb_client.upsert_one_docdb_record(
+                        record=metadata
+                    )
+                    logging.info(f"DocDB response: {docdb_response.json()}")
 
     def run_job(self):
         """
