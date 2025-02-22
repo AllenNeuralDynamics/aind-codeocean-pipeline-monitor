@@ -1,7 +1,9 @@
 """Tests for models module"""
 
 import json
+import os
 import unittest
+from unittest.mock import patch
 
 from codeocean.computation import RunParams
 from codeocean.data_asset import AWSS3Target, Target
@@ -9,8 +11,32 @@ from pydantic import ValidationError
 
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
+    DocDbSettings,
     PipelineMonitorSettings,
 )
+
+
+class TestDocDbSettings(unittest.TestCase):
+    """Tests for DocDbSettings class."""
+
+    @patch.dict(
+        os.environ,
+        {
+            "DOCDB_API_GATEWAY": "example.com",
+            "DOCDB_DATABASE": "db",
+            "DOCDB_COLLECTION": "coll",
+            "RESULTS_BUCKET": "example_bucket",
+        },
+        clear=True,
+    )
+    def test_construction(self):
+        """Tests settings will pull from env vars"""
+
+        docdb_settings = DocDbSettings()
+        self.assertEqual("example.com", docdb_settings.docdb_api_gateway)
+        self.assertEqual("db", docdb_settings.docdb_database)
+        self.assertEqual("coll", docdb_settings.docdb_collection)
+        self.assertEqual("example_bucket", docdb_settings.results_bucket)
 
 
 class TestsCapturedDataAssetParams(unittest.TestCase):
