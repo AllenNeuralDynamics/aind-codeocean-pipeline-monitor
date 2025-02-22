@@ -19,8 +19,14 @@ except ModuleNotFoundError:  # pragma: no cover
         "'pip install aind-codeocean-pipeline-monitor[full]'. "
         "See README for more information."
     )
+import os
+
 from codeocean import CodeOcean
-from codeocean.computation import Computation, ComputationState
+from codeocean.computation import (
+    Computation,
+    ComputationEndStatus,
+    ComputationState,
+)
 from codeocean.data_asset import (
     AWSS3Target,
     ComputationSource,
@@ -32,6 +38,8 @@ from codeocean.data_asset import (
 )
 
 from aind_codeocean_pipeline_monitor.models import PipelineMonitorSettings
+
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
 
 
 class PipelineMonitorJob:
@@ -67,9 +75,18 @@ class PipelineMonitorJob:
                     timeout=self.job_settings.computation_timeout,
                 )
             )
-            if wait_until_completed_response.state == ComputationState.Failed:
+            if (
+                wait_until_completed_response.state == ComputationState.Failed
+                or wait_until_completed_response.end_status
+                in [ComputationEndStatus.Failed, ComputationEndStatus.Stopped]
+                or not (
+                    wait_until_completed_response.exit_code is None
+                    or wait_until_completed_response.exit_code == 0
+                )
+            ):
                 raise Exception(
-                    f"The pipeline run failed: {wait_until_completed_response}"
+                    f"The computation had an error: "
+                    f"{wait_until_completed_response}"
                 )
             return wait_until_completed_response
         except TimeoutError as e:
