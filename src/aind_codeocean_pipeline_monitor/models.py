@@ -24,6 +24,30 @@ from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings
 
 
+class DocDbSettings(BaseSettings):
+    """Settings needed to add a record to DocDB"""
+
+    docdb_api_gateway: str = Field(
+        default=...,
+        description="DocDB API Gateway",
+    )
+    docdb_database: str = Field(
+        default=...,
+        description="DocDB Database",
+    )
+    docdb_collection: str = Field(
+        default=...,
+        description="DocDB Collection",
+    )
+    results_bucket: str = Field(
+        default=...,
+        description=(
+            "Bucket where Code Ocean stores results. "
+            "This is used to add the location field in the DocDB record."
+        ),
+    )
+
+
 class CaptureSettings(BaseSettings, DataAssetParams):
     """
     Make name and mount fields optional. They will be determined after the
@@ -40,9 +64,8 @@ class CaptureSettings(BaseSettings, DataAssetParams):
     data_description_file_name: Literal["data_description.json"] = Field(
         default="data_description.json",
         description=(
-            "Attempt to create data asset name from this file. We might "
-            "import this from the aind-data-schema package directly in future "
-            "releases."
+            "(DEPRECATED) We are pulling this name from aind-data-schema. "
+            "This field will be removed in a future release."
         ),
     )
     process_name_suffix: Optional[str] = Field(default="processed")
@@ -50,6 +73,14 @@ class CaptureSettings(BaseSettings, DataAssetParams):
     permissions: Permissions = Field(
         default=Permissions(everyone=EveryoneRole.Viewer),
         description="Permissions to assign to capture result.",
+    )
+    docdb_settings: Optional[DocDbSettings] = Field(
+        default=None,
+        description=(
+            "Settings to interface with DocumentDB. "
+            "Allows job to add record immediately after the results folder is "
+            "created in S3."
+        ),
     )
 
 
