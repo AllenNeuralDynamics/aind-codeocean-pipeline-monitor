@@ -12,6 +12,7 @@ from codeocean import CodeOcean
 from codeocean.components import EveryoneRole, Permissions
 from codeocean.computation import (
     Computation,
+    ComputationEndStatus,
     ComputationState,
     DataAssetsRunParam,
     DownloadFileURL,
@@ -230,7 +231,47 @@ class TestPipelineMonitorJob(unittest.TestCase):
                     run_time=0,
                 )
             )
-        self.assertIn("The pipeline run failed", e.exception.args[0])
+        self.assertIn("The computation had an error: ", e.exception.args[0])
+        mock_sleep.assert_called_once_with(180)
+
+    @patch("codeocean.computation.Computations.get_computation")
+    @patch("codeocean.computation.sleep", return_value=None)
+    def test_monitor_pipeline_failed_exit_code(
+        self,
+        mock_sleep: MagicMock,
+        mock_get_computation: MagicMock,
+    ):
+        """Tests _monitor_pipeline method when exit code is 1"""
+        failed_comp = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Completed,
+            end_status=ComputationEndStatus.Succeeded,
+            exit_code=1,
+            run_time=100,
+        )
+        mock_get_computation.side_effect = [
+            Computation(
+                id="c123",
+                created=0,
+                name="c_name",
+                state=ComputationState.Running,
+                run_time=1,
+            ),
+            failed_comp,
+        ]
+        with self.assertRaises(Exception) as e:
+            self.no_capture_job._monitor_pipeline(
+                computation=Computation(
+                    id="c123",
+                    created=0,
+                    name="c_name",
+                    state=ComputationState.Initializing,
+                    run_time=0,
+                )
+            )
+        self.assertIn("The computation had an error: ", e.exception.args[0])
         mock_sleep.assert_called_once_with(180)
 
     @patch("codeocean.data_asset.DataAssets.get_data_asset")
@@ -756,10 +797,15 @@ class TestPipelineMonitorJob(unittest.TestCase):
             last_used=1,
             tags=["derived"],
         )
-        self.capture_job._update_docdb(
-            core_metadata_jsons=core_json,
-            capture_result_response=capture_result_response,
-            name=name,
+        with self.assertLogs(level="INFO") as captured:
+            self.capture_job._update_docdb(
+                core_metadata_jsons=core_json,
+                capture_result_response=capture_result_response,
+                name=name,
+            )
+        self.assertEqual(
+            ["INFO:root:DocDB response: {'message': 'success'}"],
+            captured.output,
         )
         mock_docdb_get.assert_called_once_with(
             filter_query={"location": "s3://example_bucket/def-123"},
@@ -872,10 +918,15 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 external=True,
             ),
         )
-        self.capture_job._update_docdb(
-            core_metadata_jsons=core_json,
-            capture_result_response=capture_result_response,
-            name=name,
+        with self.assertLogs(level="INFO") as captured:
+            self.capture_job._update_docdb(
+                core_metadata_jsons=core_json,
+                capture_result_response=capture_result_response,
+                name=name,
+            )
+        self.assertEqual(
+            ["INFO:root:DocDB response: {'message': 'success'}"],
+            captured.output,
         )
         mock_docdb_get.assert_called_once_with(
             filter_query={"location": f"s3://external/{name}"},
