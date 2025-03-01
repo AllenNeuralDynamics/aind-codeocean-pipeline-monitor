@@ -457,16 +457,19 @@ class PipelineMonitorJob:
                                 ExternalPlatforms.CODEOCEAN, []
                             )
                         )
-                        external_links.add(capture_result_response.id)
-                        external_links = sorted(list(external_links))
-                        record["external_links"] = external_links
-                        record["last_modified"] = last_modified
-                        docdb_response = docdb_client.upsert_one_docdb_record(
-                            record=record
-                        )
-                        logging.info(
-                            f"DocDB response: {docdb_response.json()}"
-                        )
+                        if capture_result_response.id not in external_links:
+                            external_links.add(capture_result_response.id)
+                            external_links = sorted(list(external_links))
+                            record["external_links"] = external_links
+                            record["last_modified"] = last_modified
+                            docdb_response = (
+                                docdb_client.upsert_one_docdb_record(
+                                    record=record
+                                )
+                            )
+                            logging.info(
+                                f"DocDB response: {docdb_response.json()}"
+                            )
                 else:
                     docdb_response = docdb_client.upsert_one_docdb_record(
                         record=metadata

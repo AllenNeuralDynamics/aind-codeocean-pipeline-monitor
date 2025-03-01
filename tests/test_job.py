@@ -869,7 +869,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 "s3://example_bucket/def-123! Will attempt to append "
                 "codeocean id to external links."
             ),
-            "INFO:root:DocDB response: {'message': 'success'}"
+            "INFO:root:DocDB response: {'message': 'success'}",
         ]
         self.assertEqual(expected_captured_output, captured.output)
         mock_docdb_get.assert_called_once_with(
