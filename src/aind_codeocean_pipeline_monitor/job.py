@@ -391,6 +391,7 @@ class PipelineMonitorJob:
         if capture_result_source is None or (
             capture_result_source is not None
             and capture_result_source.external is not True
+            and docdb_settings.results_bucket is not None
         ):
             bucket = docdb_settings.results_bucket
             prefix = capture_result_response.id
@@ -445,17 +446,30 @@ class PipelineMonitorJob:
                     paginate=False,
                 )
                 if len(records) > 0:
+                    logging.warning(
+                        f"Found an existing record(s) for location {location}!"
+                        f" Will attempt to append codeocean id to external"
+                        f" links."
+                    )
                     for record in records:
                         external_links = set(
                             record.get("external_links", dict()).get(
                                 ExternalPlatforms.CODEOCEAN, []
                             )
                         )
-                        external_links.add(capture_result_response.id)
-                        external_links = sorted(list(external_links))
-                        record["external_links"] = external_links
-                        record["last_modified"] = last_modified
-                        docdb_client.upsert_one_docdb_record(record=record)
+                        if capture_result_response.id not in external_links:
+                            external_links.add(capture_result_response.id)
+                            external_links = sorted(list(external_links))
+                            record["external_links"] = external_links
+                            record["last_modified"] = last_modified
+                            docdb_response = (
+                                docdb_client.upsert_one_docdb_record(
+                                    record=record
+                                )
+                            )
+                            logging.info(
+                                f"DocDB response: {docdb_response.json()}"
+                            )
                 else:
                     docdb_response = docdb_client.upsert_one_docdb_record(
                         record=metadata
@@ -520,6 +534,10 @@ class PipelineMonitorJob:
                     self.job_settings.capture_settings.docdb_settings
                     is not None
                 ):
+                    logging.info(
+                        f"Updating DocDB: for {data_asset_params.name} "
+                        f"with {core_metadata_jsons}"
+                    )
                     self._update_docdb(
                         core_metadata_jsons=core_metadata_jsons,
                         name=data_asset_params.name,
