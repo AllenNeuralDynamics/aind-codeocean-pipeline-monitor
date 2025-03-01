@@ -53,7 +53,12 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
         expected_model_json = {
             "tags": ["derived, 123456, ecephys"],
             "description": "some data",
-            "permissions": {"everyone": "viewer"},
+            "permissions": {
+                "everyone": "viewer",
+                "groups": [
+                    {"group": "AIND Data Administrators", "role": "owner"}
+                ],
+            },
             "custom_metadata": {"data level": "derived"},
             "data_description_file_name": "data_description.json",
             "process_name_suffix": "processed",
@@ -71,7 +76,12 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
             target=Target(aws=AWSS3Target(bucket="my-bucket", prefix="")),
         )
         expected_model_json = {
-            "permissions": {"everyone": "viewer"},
+            "permissions": {
+                "everyone": "viewer",
+                "groups": [
+                    {"group": "AIND Data Administrators", "role": "owner"}
+                ],
+            },
             "tags": ["derived, 123456, ecephys"],
             "target": {"aws": {"bucket": "my-bucket", "prefix": ""}},
             "process_name_suffix": "processed",
@@ -104,7 +114,12 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
                 "data_description_file_name": "data_description.json",
                 "process_name_suffix": "processed",
                 "process_name_suffix_tz": "UTC",
-                "permissions": {"everyone": "viewer"},
+                "permissions": {
+                    "everyone": "viewer",
+                    "groups": [
+                        {"group": "AIND Data Administrators", "role": "owner"}
+                    ],
+                },
             },
             "computation_polling_interval": 180,
             "data_asset_ready_polling_interval": 10,
