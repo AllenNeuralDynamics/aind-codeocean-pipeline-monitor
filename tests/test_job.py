@@ -857,11 +857,21 @@ class TestPipelineMonitorJob(unittest.TestCase):
             last_used=1,
             tags=["derived"],
         )
-        self.capture_job._update_docdb(
-            core_metadata_jsons=core_json,
-            capture_result_response=capture_result_response,
-            name=name,
-        )
+        with self.assertLogs(level="INFO") as captured:
+            self.capture_job._update_docdb(
+                core_metadata_jsons=core_json,
+                capture_result_response=capture_result_response,
+                name=name,
+            )
+        expected_captured_output = [
+            (
+                "WARNING:root:Found an existing record(s) for location "
+                "s3://example_bucket/def-123! Will attempt to append "
+                "codeocean id to external links."
+            ),
+            "INFO:root:DocDB response: {'message': 'success'}"
+        ]
+        self.assertEqual(expected_captured_output, captured.output)
         mock_docdb_get.assert_called_once_with(
             filter_query={"location": "s3://example_bucket/def-123"},
             projection={"_id": 1, "location": 1, "external_links": 1},
@@ -1089,7 +1099,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertLogs(level="INFO") as captured:
             self.capture_job.run_job()
 
-        self.assertEqual(7, len(captured.output))
+        self.assertEqual(8, len(captured.output))
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
             permissions=Permissions(everyone=EveryoneRole.Viewer),
@@ -1206,7 +1216,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_gather_metadata.assert_called_once()
         mock_update_docdb.assert_called_once()
 
-        self.assertEqual(7, len(captured.output))
+        self.assertEqual(8, len(captured.output))
         mock_send_alert.assert_has_calls(
             [
                 call(message="Starting ecephys_123456_2020-10-10_00-00-00"),
