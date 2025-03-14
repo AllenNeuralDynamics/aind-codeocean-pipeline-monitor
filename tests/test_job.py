@@ -1120,6 +1120,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_update_docdb.assert_called_once()
         mock_send_alert.assert_not_called()
 
+        
+
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
         "._send_alert_to_teams"
@@ -1242,6 +1244,10 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 call(message="Finished ecephys_123456_2020-10-10_00-00-00"),
             ]
         )
+        mock_update_docdb.side_effect = Exception("Something went wrong.")
+        with self.assertLogs(level="ERROR") as captured:
+            self.capture_job_with_alert.run_job()
+            
 
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
@@ -1345,6 +1351,10 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_update_docdb.assert_not_called()
         mock_build_data_asset_params.assert_not_called()
         mock_update_permissions.assert_not_called()
+
+
+
+
 
 
 if __name__ == "__main__":
