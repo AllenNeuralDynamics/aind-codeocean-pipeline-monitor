@@ -862,7 +862,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             last_used=1,
             tags=["derived"],
         )
-        with self.assertLogs(level="INFO") as captured:
+        with self.assertLogs(level="DEBUG") as captured:
             self.capture_job._update_docdb(
                 core_metadata_jsons=core_json,
                 capture_result_response=capture_result_response,
@@ -874,7 +874,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 "s3://example_bucket/def-123! Will attempt to append "
                 "codeocean id to external links."
             ),
-            "INFO:root:DocDB response: {'message': 'success'}",
+            "DEBUG:root:DocDB response: {'message': 'success'}",
         ]
         self.assertEqual(expected_captured_output, captured.output)
         mock_docdb_get.assert_called_once_with(
@@ -1218,6 +1218,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 computation=ComputationSource(id="c123", path=None),
             ),
         )
+        mock_update_docdb.side_effect = Exception("Something went wrong.")
         with self.assertLogs(level="INFO") as captured:
             self.capture_job_with_alert.run_job()
 
@@ -1233,18 +1234,20 @@ class TestPipelineMonitorJob(unittest.TestCase):
             ),
         )
         mock_gather_metadata.assert_called_once()
-        mock_update_docdb.assert_called_once()
-
-        self.assertEqual(8, len(captured.output))
+        self.assertEqual(9, len(captured.output))
         mock_send_alert.assert_has_calls(
             [
                 call(message="Starting ecephys_123456_2020-10-10_00-00-00"),
                 call(message="Finished ecephys_123456_2020-10-10_00-00-00"),
             ]
         )
-        mock_update_docdb.side_effect = Exception("Something went wrong.")
-        with self.assertLogs(level="ERROR") as captured:
-            self.capture_job_with_alert.run_job()
+        self.assertIn(
+            (
+                "ERROR:root:Error updating DocDB: ('Something went wrong.',)."
+                " Continuing with job."
+            ),
+            captured.output,
+        )
 
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
