@@ -467,7 +467,7 @@ class PipelineMonitorJob:
                                     record=record
                                 )
                             )
-                            logging.info(
+                            logging.debug(
                                 f"DocDB response: {docdb_response.json()}"
                             )
                 else:
@@ -538,11 +538,17 @@ class PipelineMonitorJob:
                         f"Updating DocDB: for {data_asset_params.name} "
                         f"with {core_metadata_jsons}"
                     )
-                    self._update_docdb(
-                        core_metadata_jsons=core_metadata_jsons,
-                        name=data_asset_params.name,
-                        capture_result_response=capture_result_response,
-                    )
+                    try:
+                        self._update_docdb(
+                            core_metadata_jsons=core_metadata_jsons,
+                            name=data_asset_params.name,
+                            capture_result_response=capture_result_response,
+                        )
+                    except Exception as e:
+                        logging.error(
+                            f"Error updating DocDB: {e.args}. "
+                            f"Continuing with job."
+                        )
 
             logging.info("Finished job.")
             if self.job_settings.alert_url is not None:
