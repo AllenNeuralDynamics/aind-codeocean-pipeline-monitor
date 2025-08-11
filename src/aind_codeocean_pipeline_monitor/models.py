@@ -144,6 +144,13 @@ class PipelineMonitorSettings(BaseSettings):
             "then will not capture results."
         ),
     )
+    job_type: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional job type to use Code Ocean token associated with the "
+            "job type. If None, will use a default service token."
+        ),
+    )
 
     @field_validator("computation_timeout")
     def validate_computation_timeout(cls, v, info: ValidationInfo):
