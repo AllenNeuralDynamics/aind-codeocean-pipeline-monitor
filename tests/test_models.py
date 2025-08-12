@@ -129,6 +129,25 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
             json.loads(settings.model_dump_json(exclude_none=True)),
         )
 
+    def test_basic_construct_job_type(self):
+        """Test basic model constructor with job_type"""
+        capture_settings = CaptureSettings(
+            tags=["derived, 123456, ecephys"],
+            custom_metadata={"data level": "derived"},
+        )
+        run_params = RunParams(pipeline_id="abc-123", version=2)
+        settings1 = PipelineMonitorSettings(
+            capture_settings=capture_settings,
+            run_params=run_params,
+        )
+        settings2 = PipelineMonitorSettings(
+            capture_settings=capture_settings,
+            run_params=run_params,
+            job_type="ecephys",
+        )
+        self.assertIsNone(settings1.job_type)
+        self.assertEqual("ecephys", settings2.job_type)
+
     def test_validator_success(self):
         """Tests validation success"""
         capture_settings = CaptureSettings(
