@@ -72,6 +72,12 @@ class CaptureSettings(BaseSettings, DataAssetParams):
     process_name_suffix_tz: Optional[str] = Field(default="UTC")
     permissions: Permissions = Field(
         default=Permissions(
+            users=[
+                UserPermissions(
+                    email="neural.dynamics@alleninstitute.org",
+                    role=UserRole.Owner,
+                )
+            ],
             groups=[
                 GroupPermissions(
                     group="AIND Data Administrators", role=GroupRole.Owner

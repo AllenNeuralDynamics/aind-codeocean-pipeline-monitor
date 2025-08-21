@@ -14,6 +14,8 @@ from codeocean.components import (
     GroupPermissions,
     GroupRole,
     Permissions,
+    UserPermissions,
+    UserRole,
 )
 from codeocean.computation import (
     Computation,
@@ -1114,6 +1116,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
                         group="AIND Data Administrators", role=GroupRole.Owner
                     )
                 ],
+                users=[
+                    UserPermissions(
+                        email="neural.dynamics@alleninstitute.org",
+                        role=UserRole.Owner,
+                    )
+                ],
             ),
         )
         mock_gather_metadata.assert_called_once()
@@ -1229,6 +1237,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 groups=[
                     GroupPermissions(
                         group="AIND Data Administrators", role=GroupRole.Owner
+                    )
+                ],
+                users=[
+                    UserPermissions(
+                        email="neural.dynamics@alleninstitute.org",
+                        role=UserRole.Owner,
                     )
                 ],
             ),

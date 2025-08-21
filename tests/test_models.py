@@ -58,6 +58,12 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
                 "groups": [
                     {"group": "AIND Data Administrators", "role": "owner"}
                 ],
+                "users": [
+                    {
+                        "email": "neural.dynamics@alleninstitute.org",
+                        "role": "owner",
+                    }
+                ],
             },
             "custom_metadata": {"data level": "derived"},
             "data_description_file_name": "data_description.json",
@@ -76,10 +82,17 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
             target=Target(aws=AWSS3Target(bucket="my-bucket", prefix="")),
         )
         expected_model_json = {
+            "data_description_file_name": "data_description.json",
             "permissions": {
                 "everyone": "viewer",
                 "groups": [
                     {"group": "AIND Data Administrators", "role": "owner"}
+                ],
+                "users": [
+                    {
+                        "email": "neural.dynamics@alleninstitute.org",
+                        "role": "owner",
+                    }
                 ],
             },
             "tags": ["derived, 123456, ecephys"],
@@ -87,8 +100,9 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
             "process_name_suffix": "processed",
             "process_name_suffix_tz": "UTC",
         }
-        self.assertTrue(
-            expected_model_json, model.model_dump_json(exclude_none=True)
+        self.assertEqual(
+            expected_model_json,
+            json.loads(model.model_dump_json(exclude_none=True)),
         )
 
 
@@ -118,6 +132,12 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
                     "everyone": "viewer",
                     "groups": [
                         {"group": "AIND Data Administrators", "role": "owner"}
+                    ],
+                    "users": [
+                        {
+                            "email": "neural.dynamics@alleninstitute.org",
+                            "role": "owner",
+                        }
                     ],
                 },
             },
