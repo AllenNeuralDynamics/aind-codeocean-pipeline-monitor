@@ -11,11 +11,7 @@ from unittest.mock import MagicMock, call, patch
 from codeocean import CodeOcean
 from codeocean.components import (
     EveryoneRole,
-    GroupPermissions,
-    GroupRole,
     Permissions,
-    UserPermissions,
-    UserRole,
 )
 from codeocean.computation import (
     Computation,
@@ -1109,20 +1105,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self.assertEqual(8, len(captured.output))
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
-            permissions=Permissions(
-                everyone=EveryoneRole.Viewer,
-                groups=[
-                    GroupPermissions(
-                        group="AIND Data Administrators", role=GroupRole.Owner
-                    )
-                ],
-                users=[
-                    UserPermissions(
-                        email="neural.dynamics@alleninstitute.org",
-                        role=UserRole.Owner,
-                    )
-                ],
-            ),
+            permissions=Permissions(everyone=EveryoneRole.Viewer),
         )
         mock_gather_metadata.assert_called_once()
         mock_update_docdb.assert_called_once()
@@ -1232,20 +1215,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
-            permissions=Permissions(
-                everyone=EveryoneRole.Viewer,
-                groups=[
-                    GroupPermissions(
-                        group="AIND Data Administrators", role=GroupRole.Owner
-                    )
-                ],
-                users=[
-                    UserPermissions(
-                        email="neural.dynamics@alleninstitute.org",
-                        role=UserRole.Owner,
-                    )
-                ],
-            ),
+            permissions=Permissions(everyone=EveryoneRole.Viewer),
         )
         mock_gather_metadata.assert_called_once()
         self.assertEqual(9, len(captured.output))

@@ -53,18 +53,7 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
         expected_model_json = {
             "tags": ["derived, 123456, ecephys"],
             "description": "some data",
-            "permissions": {
-                "everyone": "viewer",
-                "groups": [
-                    {"group": "AIND Data Administrators", "role": "owner"}
-                ],
-                "users": [
-                    {
-                        "email": "neural.dynamics@alleninstitute.org",
-                        "role": "owner",
-                    }
-                ],
-            },
+            "permissions": {"everyone": "viewer"},
             "custom_metadata": {"data level": "derived"},
             "data_description_file_name": "data_description.json",
             "process_name_suffix": "processed",
@@ -83,18 +72,7 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
         )
         expected_model_json = {
             "data_description_file_name": "data_description.json",
-            "permissions": {
-                "everyone": "viewer",
-                "groups": [
-                    {"group": "AIND Data Administrators", "role": "owner"}
-                ],
-                "users": [
-                    {
-                        "email": "neural.dynamics@alleninstitute.org",
-                        "role": "owner",
-                    }
-                ],
-            },
+            "permissions": {"everyone": "viewer"},
             "tags": ["derived, 123456, ecephys"],
             "target": {"aws": {"bucket": "my-bucket", "prefix": ""}},
             "process_name_suffix": "processed",
@@ -128,18 +106,7 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
                 "data_description_file_name": "data_description.json",
                 "process_name_suffix": "processed",
                 "process_name_suffix_tz": "UTC",
-                "permissions": {
-                    "everyone": "viewer",
-                    "groups": [
-                        {"group": "AIND Data Administrators", "role": "owner"}
-                    ],
-                    "users": [
-                        {
-                            "email": "neural.dynamics@alleninstitute.org",
-                            "role": "owner",
-                        }
-                    ],
-                },
+                "permissions": {"everyone": "viewer"},
             },
             "computation_polling_interval": 180,
             "data_asset_ready_polling_interval": 10,

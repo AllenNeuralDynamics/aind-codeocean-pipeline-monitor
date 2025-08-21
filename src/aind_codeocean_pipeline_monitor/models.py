@@ -71,20 +71,7 @@ class CaptureSettings(BaseSettings, DataAssetParams):
     process_name_suffix: Optional[str] = Field(default="processed")
     process_name_suffix_tz: Optional[str] = Field(default="UTC")
     permissions: Permissions = Field(
-        default=Permissions(
-            users=[
-                UserPermissions(
-                    email="neural.dynamics@alleninstitute.org",
-                    role=UserRole.Owner,
-                )
-            ],
-            groups=[
-                GroupPermissions(
-                    group="AIND Data Administrators", role=GroupRole.Owner
-                )
-            ],
-            everyone=EveryoneRole.Viewer,
-        ),
+        default=Permissions(everyone=EveryoneRole.Viewer),
         description="Permissions to assign to capture result.",
     )
     docdb_settings: Optional[DocDbSettings] = Field(
