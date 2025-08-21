@@ -19,7 +19,7 @@ from codeocean.data_asset import (  # noqa: F401
     ResultsInfo,
     Target,
 )
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 from pydantic_settings import BaseSettings
 
@@ -71,14 +71,7 @@ class CaptureSettings(BaseSettings, DataAssetParams):
     process_name_suffix: Optional[str] = Field(default="processed")
     process_name_suffix_tz: Optional[str] = Field(default="UTC")
     permissions: Permissions = Field(
-        default=Permissions(
-            groups=[
-                GroupPermissions(
-                    group="AIND Data Administrators", role=GroupRole.Owner
-                )
-            ],
-            everyone=EveryoneRole.Viewer,
-        ),
+        default=Permissions(everyone=EveryoneRole.Viewer),
         description="Permissions to assign to capture result.",
     )
     docdb_settings: Optional[DocDbSettings] = Field(
@@ -87,13 +80,6 @@ class CaptureSettings(BaseSettings, DataAssetParams):
             "Settings to interface with DocumentDB. "
             "Allows job to add record immediately after the results folder is "
             "created in S3."
-        ),
-    )
-    permissions_token: Optional[SecretStr] = Field(
-        default=None,
-        description=(
-            "Optional Code Ocean token used to update capture result "
-            "permissions. If None, will use the client from the main job."
         ),
     )
 

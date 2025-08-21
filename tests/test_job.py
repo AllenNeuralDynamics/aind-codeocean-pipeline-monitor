@@ -11,8 +11,6 @@ from unittest.mock import MagicMock, call, patch
 from codeocean import CodeOcean
 from codeocean.components import (
     EveryoneRole,
-    GroupPermissions,
-    GroupRole,
     Permissions,
 )
 from codeocean.computation import (
@@ -37,7 +35,6 @@ from codeocean.data_asset import (
     Target,
 )
 from codeocean.folder import FolderItem
-from pydantic import SecretStr
 from requests import Response
 from requests.exceptions import HTTPError
 
@@ -86,12 +83,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 ),
             ),
         )
-        capture_settings_with_token = capture_results_settings.model_copy(
-            deep=True
-        )
-        capture_settings_with_token.capture_settings.permissions_token = (
-            SecretStr("permissions_token")
-        )
         capture_settings_with_alert = capture_results_settings.model_copy(
             deep=True
         )
@@ -109,17 +100,11 @@ class TestPipelineMonitorJob(unittest.TestCase):
         capture_job = PipelineMonitorJob(
             job_settings=capture_results_settings, client=co_client
         )
-        capture_job_with_permissions_token = PipelineMonitorJob(
-            job_settings=capture_settings_with_token, client=co_client
-        )
         capture_job_with_alert = PipelineMonitorJob(
             job_settings=capture_settings_with_alert, client=co_client
         )
         cls.no_capture_job = no_capture_job
         cls.capture_job = capture_job
-        cls.capture_job_with_permissions_token = (
-            capture_job_with_permissions_token
-        )
         cls.capture_job_with_alert = capture_job_with_alert
         cls.internal_server_error = internal_server_error
         cls.expected_data_description = expected_data_description
@@ -1042,7 +1027,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
     )
     @patch("codeocean.data_asset.DataAssets.create_data_asset")
     @patch("codeocean.computation.Computations.run_capsule")
-    @patch("aind_codeocean_pipeline_monitor.job.CodeOcean")
     @patch("codeocean.data_asset.DataAssets.update_permissions")
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._update_docdb"
@@ -1053,7 +1037,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_datetime: MagicMock,
         mock_update_docdb: MagicMock,
         mock_update_permissions: MagicMock,
-        mock_permissions_client: MagicMock,
         mock_run_capsule: MagicMock,
         mock_create_data_asset: MagicMock,
         mock_gather_metadata: MagicMock,
@@ -1120,144 +1103,9 @@ class TestPipelineMonitorJob(unittest.TestCase):
             self.capture_job.run_job()
 
         self.assertEqual(8, len(captured.output))
-        mock_permissions_client.assert_not_called()
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
-            permissions=Permissions(
-                everyone=EveryoneRole.Viewer,
-                groups=[
-                    GroupPermissions(
-                        group="AIND Data Administrators", role=GroupRole.Owner
-                    )
-                ],
-            ),
-        )
-        mock_gather_metadata.assert_called_once()
-        mock_update_docdb.assert_called_once()
-        mock_send_alert.assert_not_called()
-
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._send_alert_to_teams"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._get_input_data_name"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._build_data_asset_params"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._wait_for_data_asset"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._monitor_pipeline"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
-        "._gather_metadata"
-    )
-    @patch("codeocean.data_asset.DataAssets.create_data_asset")
-    @patch("codeocean.computation.Computations.run_capsule")
-    @patch("aind_codeocean_pipeline_monitor.job.CodeOcean")
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._update_docdb"
-    )
-    @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    def test_run_job_permissions_token(
-        self,
-        mock_datetime: MagicMock,
-        mock_update_docdb: MagicMock,
-        mock_permissions_client: MagicMock,
-        mock_run_capsule: MagicMock,
-        mock_create_data_asset: MagicMock,
-        mock_gather_metadata: MagicMock,
-        mock_monitor_pipeline: MagicMock,
-        mock_wait_for_data_asset: MagicMock,
-        mock_build_data_asset_params: MagicMock,
-        mock_get_input_data_name: MagicMock,
-        mock_send_alert: MagicMock,
-    ):
-        """Tests run_job method when a permissions token is set in the capture
-        settings.
-        """
-        mock_get_input_data_name.return_value = (
-            "ecephys_123456_2020-10-10_00-00-00"
-        )
-        mock_datetime.now.return_value = datetime(2020, 11, 10)
-        mock_run_capsule.return_value = Computation(
-            id="c123",
-            created=0,
-            name="c_name",
-            state=ComputationState.Initializing,
-            run_time=0,
-        )
-        mock_monitor_pipeline.return_value = Computation(
-            id="c123",
-            created=0,
-            name="c_name",
-            state=ComputationState.Completed,
-            run_time=100,
-        )
-        mock_gather_metadata.return_value = dict()
-
-        expected_name = (
-            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
-        )
-        mock_create_data_asset.return_value = DataAsset(
-            id="def-123",
-            created=1,
-            name=expected_name,
-            mount=expected_name,
-            state=DataAssetState.Draft,
-            type=DataAssetType.Result,
-            last_used=1,
-            tags=["derived"],
-        )
-        mock_wait_for_data_asset.return_value = DataAsset(
-            id="def-123",
-            created=1,
-            name=expected_name,
-            mount=expected_name,
-            state=DataAssetState.Ready,
-            type=DataAssetType.Result,
-            last_used=1,
-            tags=["derived"],
-        )
-
-        mock_build_data_asset_params.return_value = DataAssetParams(
-            name=expected_name,
-            tags=["derived"],
-            mount=expected_name,
-            source=Source(
-                computation=ComputationSource(id="c123", path=None),
-            ),
-        )
-        with self.assertLogs(level="INFO") as captured:
-            self.capture_job_with_permissions_token.run_job()
-
-        self.assertEqual(8, len(captured.output))
-        mock_permissions_client.assert_called_once_with(
-            domain="test_domain",
-            token="permissions_token",
-            retries=0,
-        )
-        mock_update_permissions = (
-            mock_permissions_client.return_value.data_assets.update_permissions
-        )
-        mock_update_permissions.assert_called_once_with(
-            data_asset_id="def-123",
-            permissions=Permissions(
-                everyone=EveryoneRole.Viewer,
-                groups=[
-                    GroupPermissions(
-                        group="AIND Data Administrators", role=GroupRole.Owner
-                    )
-                ],
-            ),
+            permissions=Permissions(everyone=EveryoneRole.Viewer),
         )
         mock_gather_metadata.assert_called_once()
         mock_update_docdb.assert_called_once()
@@ -1367,14 +1215,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
 
         mock_update_permissions.assert_called_once_with(
             data_asset_id="def-123",
-            permissions=Permissions(
-                everyone=EveryoneRole.Viewer,
-                groups=[
-                    GroupPermissions(
-                        group="AIND Data Administrators", role=GroupRole.Owner
-                    )
-                ],
-            ),
+            permissions=Permissions(everyone=EveryoneRole.Viewer),
         )
         mock_gather_metadata.assert_called_once()
         self.assertEqual(9, len(captured.output))

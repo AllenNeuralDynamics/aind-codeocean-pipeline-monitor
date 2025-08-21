@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from codeocean.computation import RunParams
 from codeocean.data_asset import AWSS3Target, Target
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
@@ -53,12 +53,7 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
         expected_model_json = {
             "tags": ["derived, 123456, ecephys"],
             "description": "some data",
-            "permissions": {
-                "everyone": "viewer",
-                "groups": [
-                    {"group": "AIND Data Administrators", "role": "owner"}
-                ],
-            },
+            "permissions": {"everyone": "viewer"},
             "custom_metadata": {"data level": "derived"},
             "data_description_file_name": "data_description.json",
             "process_name_suffix": "processed",
@@ -76,28 +71,17 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
             target=Target(aws=AWSS3Target(bucket="my-bucket", prefix="")),
         )
         expected_model_json = {
-            "permissions": {
-                "everyone": "viewer",
-                "groups": [
-                    {"group": "AIND Data Administrators", "role": "owner"}
-                ],
-            },
+            "data_description_file_name": "data_description.json",
+            "permissions": {"everyone": "viewer"},
             "tags": ["derived, 123456, ecephys"],
             "target": {"aws": {"bucket": "my-bucket", "prefix": ""}},
             "process_name_suffix": "processed",
             "process_name_suffix_tz": "UTC",
         }
-        self.assertTrue(
-            expected_model_json, model.model_dump_json(exclude_none=True)
+        self.assertEqual(
+            expected_model_json,
+            json.loads(model.model_dump_json(exclude_none=True)),
         )
-
-    def test_set_permissions_token(self):
-        """Test permissions token can be set"""
-        model = CaptureSettings(
-            tags=["derived, 123456, ecephys"],
-            permissions_token=SecretStr("token"),
-        )
-        self.assertEqual("token", model.permissions_token.get_secret_value())
 
 
 class TestsPipelineMonitorSettings(unittest.TestCase):
@@ -122,12 +106,7 @@ class TestsPipelineMonitorSettings(unittest.TestCase):
                 "data_description_file_name": "data_description.json",
                 "process_name_suffix": "processed",
                 "process_name_suffix_tz": "UTC",
-                "permissions": {
-                    "everyone": "viewer",
-                    "groups": [
-                        {"group": "AIND Data Administrators", "role": "owner"}
-                    ],
-                },
+                "permissions": {"everyone": "viewer"},
             },
             "computation_polling_interval": 180,
             "data_asset_ready_polling_interval": 10,
