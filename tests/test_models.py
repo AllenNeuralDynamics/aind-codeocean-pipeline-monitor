@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 from codeocean.computation import RunParams
 from codeocean.data_asset import AWSS3Target, Target
-from pydantic import SecretStr, ValidationError
+from pydantic import ValidationError
 
 from aind_codeocean_pipeline_monitor.models import (
     CaptureSettings,
@@ -90,14 +90,6 @@ class TestsCapturedDataAssetParams(unittest.TestCase):
         self.assertTrue(
             expected_model_json, model.model_dump_json(exclude_none=True)
         )
-
-    def test_set_permissions_token(self):
-        """Test permissions token can be set"""
-        model = CaptureSettings(
-            tags=["derived, 123456, ecephys"],
-            permissions_token=SecretStr("token"),
-        )
-        self.assertEqual("token", model.permissions_token.get_secret_value())
 
 
 class TestsPipelineMonitorSettings(unittest.TestCase):

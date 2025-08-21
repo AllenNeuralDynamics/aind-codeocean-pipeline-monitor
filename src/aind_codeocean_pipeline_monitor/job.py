@@ -526,17 +526,7 @@ class PipelineMonitorJob:
                 logging.info(
                     f"wait_for_data_asset_response: {wait_for_data_asset}"
                 )
-                token = self.job_settings.capture_settings.permissions_token
-                client = (
-                    CodeOcean(
-                        domain=self.client.domain,
-                        token=token.get_secret_value(),
-                        retries=self.client.retries,
-                    )
-                    if token is not None
-                    else self.client
-                )
-                client.data_assets.update_permissions(
+                self.client.data_assets.update_permissions(
                     data_asset_id=capture_result_response.id,
                     permissions=self.job_settings.capture_settings.permissions,
                 )
