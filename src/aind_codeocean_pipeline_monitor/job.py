@@ -173,7 +173,7 @@ class PipelineMonitorJob:
 
     @staticmethod
     def _get_name_and_level_from_data_description(
-        core_metadata_json: Dict[str, Dict[str, Any]]
+        core_metadata_json: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Optional[str]]:
         """
         Attempts to extract a name and data level from the data_description
@@ -492,9 +492,18 @@ class PipelineMonitorJob:
                 message = f"Starting {input_data_name}"
                 self._send_alert_to_teams(message=message)
 
-            start_pipeline_response = self.client.computations.run_capsule(
-                self.job_settings.run_params
-            )
+            try:
+                start_pipeline_response = self.client.computations.run_capsule(
+                    self.job_settings.run_params
+                )
+            except requests.exceptions.HTTPError as e:
+                try:
+                    message = e.response.json()["message"]
+                except (json.JSONDecodeError, KeyError):
+                    message = e.response.text
+                logging.error(f"Error message not in JSON format: {message}")
+                raise RuntimeError(f"Failed to start pipeline: {message}")
+
             logging.info(f"start_pipeline_response: {start_pipeline_response}")
             monitor_pipeline_response = self._monitor_pipeline(
                 start_pipeline_response
