@@ -1221,7 +1221,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self.assertEqual(9, len(captured.output))
         mock_send_alert.assert_has_calls(
             [
-                call(message="Starting ecephys_123456_2020-10-10_00-00-00"),
+                call(
+                    message=(
+                        "Starting ecephys_123456_2020-10-10_00-00-00 with "
+                        "capsule_id None, pipeline_id abc-123, version None"
+                    )
+                ),
                 call(message="Finished ecephys_123456_2020-10-10_00-00-00"),
             ]
         )
@@ -1323,7 +1328,12 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self.assertEqual(2, len(captured.output))
         mock_send_alert.assert_has_calls(
             [
-                call(message="Starting ecephys_123456_2020-10-10_00-00-00"),
+                call(
+                    message=(
+                        "Starting ecephys_123456_2020-10-10_00-00-00 with "
+                        "capsule_id None, pipeline_id abc-123, version None"
+                    )
+                ),
                 call(
                     message="Error with ecephys_123456_2020-10-10_00-00-00",
                     extra_text="Message: ('Something went wrong.',)",
