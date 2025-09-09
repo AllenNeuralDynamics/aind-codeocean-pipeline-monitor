@@ -45,6 +45,7 @@ from codeocean.data_asset import (
     Source,
     Target,
 )
+from codeocean.error import Error
 
 from aind_codeocean_pipeline_monitor.models import PipelineMonitorSettings
 
@@ -561,10 +562,12 @@ class PipelineMonitorJob:
             if self.job_settings.alert_url is not None:
                 message = f"Finished {input_data_name}"
                 self._send_alert_to_teams(message=message)
-        except Exception as e:
+        except (Error, Exception) as e:
             if self.job_settings.alert_url is not None:
                 message = f"Error with {input_data_name}"
-                extra_text = f"Message: {e.args}"
+                extra_text = (
+                    str(e) if isinstance(e, Error) else f"Message: {e.args}"
+                )
                 self._send_alert_to_teams(
                     message=message, extra_text=extra_text
                 )

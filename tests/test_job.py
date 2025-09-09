@@ -34,6 +34,7 @@ from codeocean.data_asset import (
     SourceBucket,
     Target,
 )
+from codeocean.error import Error
 from codeocean.folder import FolderItem
 from requests import Response
 from requests.exceptions import HTTPError
@@ -1238,6 +1239,126 @@ class TestPipelineMonitorJob(unittest.TestCase):
             ),
             captured.output,
         )
+
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._send_alert_to_teams"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._get_input_data_name"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._build_data_asset_params"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._wait_for_data_asset"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._monitor_pipeline"
+    )
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
+        "._gather_metadata"
+    )
+    @patch("codeocean.data_asset.DataAssets.create_data_asset")
+    @patch("codeocean.computation.Computations.run_capsule")
+    @patch("codeocean.data_asset.DataAssets.update_permissions")
+    @patch(
+        "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob._update_docdb"
+    )
+    @patch("aind_codeocean_pipeline_monitor.job.datetime")
+    def test_run_job_with_alerts_co_error(
+        self,
+        mock_datetime: MagicMock,
+        mock_update_docdb: MagicMock,
+        mock_update_permissions: MagicMock,
+        mock_run_capsule: MagicMock,
+        mock_create_data_asset: MagicMock,
+        mock_gather_metadata: MagicMock,
+        mock_monitor_pipeline: MagicMock,
+        mock_wait_for_data_asset: MagicMock,
+        mock_build_data_asset_params: MagicMock,
+        mock_get_input_data_name: MagicMock,
+        mock_send_alert: MagicMock,
+    ):
+        """Tests steps are called in run_job method when a Code Ocean error is
+        raised."""
+        mock_get_input_data_name.return_value = (
+            "ecephys_123456_2020-10-10_00-00-00"
+        )
+        mock_datetime.now.return_value = datetime(2020, 11, 10)
+        mock_run_capsule.return_value = Computation(
+            id="c123",
+            created=0,
+            name="c_name",
+            state=ComputationState.Initializing,
+            run_time=0,
+        )
+        http_error_response = Response()
+        http_error_response.status_code = 404
+        http_error_response._content = b'{"message": "not found"}'
+        mock_monitor_pipeline.side_effect = Error(
+            err=HTTPError(response=http_error_response)
+        )
+
+        expected_name = (
+            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
+        )
+        mock_create_data_asset.return_value = DataAsset(
+            id="def-123",
+            created=1,
+            name=expected_name,
+            mount=expected_name,
+            state=DataAssetState.Draft,
+            type=DataAssetType.Result,
+            last_used=1,
+            tags=["derived"],
+        )
+        mock_wait_for_data_asset.return_value = DataAsset(
+            id="def-123",
+            created=1,
+            name=expected_name,
+            mount=expected_name,
+            state=DataAssetState.Ready,
+            type=DataAssetType.Result,
+            last_used=1,
+            tags=["derived"],
+        )
+
+        with self.assertLogs(level="INFO") as captured:
+            with self.assertRaises(Error) as e:
+                self.capture_job_with_alert.run_job()
+
+        self.assertEqual(2, len(captured.output))
+        mock_send_alert.assert_has_calls(
+            [
+                call(
+                    message="Starting ecephys_123456_2020-10-10_00-00-00",
+                    extra_text=(
+                        "- capsule: None\n- pipeline: abc-123\n"
+                        "- version: None\n"
+                    ),
+                ),
+                call(
+                    message="Error with ecephys_123456_2020-10-10_00-00-00",
+                    extra_text=(
+                        "\n\nMessage: not found\n\n"
+                        'Data:\n{\n  "message": "not found"\n}'
+                    ),
+                ),
+            ]
+        )
+        self.assertEqual(404, e.exception.status_code)
+        self.assertEqual("not found", e.exception.message)
+        self.assertEqual({"message": "not found"}, e.exception.data)
+        mock_gather_metadata.assert_not_called()
+        mock_update_docdb.assert_not_called()
+        mock_build_data_asset_params.assert_not_called()
+        mock_update_permissions.assert_not_called()
 
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"
