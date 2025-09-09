@@ -489,13 +489,15 @@ class PipelineMonitorJob:
                 f"Input data: {input_data_name}"
             )
             if self.job_settings.alert_url is not None:
-                message = (
-                    f"Starting {input_data_name} with "
-                    f"capsule_id {self.job_settings.run_params.capsule_id}, "
-                    f"pipeline_id {self.job_settings.run_params.pipeline_id}, "
-                    f"version {self.job_settings.run_params.version}"
+                message = f"Starting {input_data_name}"
+                extra_text = (
+                    f"- capsule: {self.job_settings.run_params.capsule_id}\n"
+                    f"- pipeline: {self.job_settings.run_params.pipeline_id}\n"
+                    f"- version: {self.job_settings.run_params.version}\n"
                 )
-                self._send_alert_to_teams(message=message)
+                self._send_alert_to_teams(
+                    message=message, extra_text=extra_text
+                )
 
             start_pipeline_response = self.client.computations.run_capsule(
                 self.job_settings.run_params

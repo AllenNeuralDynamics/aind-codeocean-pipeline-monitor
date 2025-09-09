@@ -1222,10 +1222,11 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_send_alert.assert_has_calls(
             [
                 call(
-                    message=(
-                        "Starting ecephys_123456_2020-10-10_00-00-00 with "
-                        "capsule_id None, pipeline_id abc-123, version None"
-                    )
+                    message="Starting ecephys_123456_2020-10-10_00-00-00",
+                    extra_text=(
+                        "- capsule: None\n- pipeline: abc-123\n- version: "
+                        "None\n"
+                    ),
                 ),
                 call(message="Finished ecephys_123456_2020-10-10_00-00-00"),
             ]
@@ -1329,10 +1330,11 @@ class TestPipelineMonitorJob(unittest.TestCase):
         mock_send_alert.assert_has_calls(
             [
                 call(
-                    message=(
-                        "Starting ecephys_123456_2020-10-10_00-00-00 with "
-                        "capsule_id None, pipeline_id abc-123, version None"
-                    )
+                    message="Starting ecephys_123456_2020-10-10_00-00-00",
+                    extra_text=(
+                        "- capsule: None\n- pipeline: abc-123\n- version: "
+                        "None\n"
+                    ),
                 ),
                 call(
                     message="Error with ecephys_123456_2020-10-10_00-00-00",
