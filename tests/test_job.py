@@ -383,7 +383,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
                 message="Job Success"
             )
         mock_post.assert_called_once()
-        expected_logs = ["INFO:root:Alert response: {'msg': 'good'}"]
+        expected_logs = ['INFO:root:Alert response: {"msg":"good"}']
         self.assertEqual(expected_logs, captured.output)
 
     @patch("requests.post")

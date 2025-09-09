@@ -151,8 +151,8 @@ class PipelineMonitorJob:
         response = requests.post(
             url=self.job_settings.alert_url, json=post_request_contents
         )
-        if response.status_code == 200:
-            logging.info(f"Alert response: {response.json()}")
+        if response.status_code == 200 or response.status_code == 202:
+            logging.info(f"Alert response: {response.text}")
         else:
             logging.warning(
                 f"There was an issue sending the alert: {response}"
