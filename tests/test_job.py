@@ -67,6 +67,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         capture_results_settings = PipelineMonitorSettings(
             run_params=RunParams(
                 pipeline_id="abc-123",
+                version=1,
                 data_assets=[
                     DataAssetsRunParam(
                         id="abc-001",
@@ -1224,10 +1225,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             [
                 call(
                     message="Starting ecephys_123456_2020-10-10_00-00-00",
-                    extra_text=(
-                        "- capsule: None\n- pipeline: abc-123\n- version: "
-                        "None\n"
-                    ),
+                    extra_text="- pipeline: abc-123\n- version: 1\n",
                 ),
                 call(message="Finished ecephys_123456_2020-10-10_00-00-00"),
             ]
@@ -1338,10 +1336,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             [
                 call(
                     message="Starting ecephys_123456_2020-10-10_00-00-00",
-                    extra_text=(
-                        "- capsule: None\n- pipeline: abc-123\n"
-                        "- version: None\n"
-                    ),
+                    extra_text="- pipeline: abc-123\n- version: 1\n",
                 ),
                 call(
                     message="Error with ecephys_123456_2020-10-10_00-00-00",
@@ -1452,10 +1447,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             [
                 call(
                     message="Starting ecephys_123456_2020-10-10_00-00-00",
-                    extra_text=(
-                        "- capsule: None\n- pipeline: abc-123\n- version: "
-                        "None\n"
-                    ),
+                    extra_text="- pipeline: abc-123\n- version: 1\n",
                 ),
                 call(
                     message="Error with ecephys_123456_2020-10-10_00-00-00",

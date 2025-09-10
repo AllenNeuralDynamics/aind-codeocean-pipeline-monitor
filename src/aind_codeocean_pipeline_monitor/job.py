@@ -491,10 +491,15 @@ class PipelineMonitorJob:
             )
             if self.job_settings.alert_url is not None:
                 message = f"Starting {input_data_name}"
-                extra_text = (
-                    f"- capsule: {self.job_settings.run_params.capsule_id}\n"
-                    f"- pipeline: {self.job_settings.run_params.pipeline_id}\n"
-                    f"- version: {self.job_settings.run_params.version}\n"
+                params = [
+                    ("capsule", self.job_settings.run_params.capsule_id),
+                    ("pipeline", self.job_settings.run_params.pipeline_id),
+                    ("version", self.job_settings.run_params.version),
+                ]
+                extra_text = "".join(
+                    f"- {label}: {value}\n"
+                    for label, value in params
+                    if value is not None
                 )
                 self._send_alert_to_teams(
                     message=message, extra_text=extra_text
