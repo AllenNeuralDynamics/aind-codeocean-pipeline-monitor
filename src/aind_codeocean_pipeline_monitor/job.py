@@ -45,6 +45,7 @@ from codeocean.data_asset import (
     Source,
     Target,
 )
+from codeocean.error import Error
 
 from aind_codeocean_pipeline_monitor.models import PipelineMonitorSettings
 
@@ -151,8 +152,8 @@ class PipelineMonitorJob:
         response = requests.post(
             url=self.job_settings.alert_url, json=post_request_contents
         )
-        if response.status_code == 200:
-            logging.info(f"Alert response: {response.json()}")
+        if response.status_code == 200 or response.status_code == 202:
+            logging.info(f"Alert response: {response.text}")
         else:
             logging.warning(
                 f"There was an issue sending the alert: {response}"
@@ -490,7 +491,19 @@ class PipelineMonitorJob:
             )
             if self.job_settings.alert_url is not None:
                 message = f"Starting {input_data_name}"
-                self._send_alert_to_teams(message=message)
+                params = [
+                    ("capsule", self.job_settings.run_params.capsule_id),
+                    ("pipeline", self.job_settings.run_params.pipeline_id),
+                    ("version", self.job_settings.run_params.version),
+                ]
+                extra_text = "".join(
+                    f"- {label}: {value}\n"
+                    for label, value in params
+                    if value is not None
+                )
+                self._send_alert_to_teams(
+                    message=message, extra_text=extra_text
+                )
 
             start_pipeline_response = self.client.computations.run_capsule(
                 self.job_settings.run_params
@@ -554,10 +567,12 @@ class PipelineMonitorJob:
             if self.job_settings.alert_url is not None:
                 message = f"Finished {input_data_name}"
                 self._send_alert_to_teams(message=message)
-        except Exception as e:
+        except (Error, Exception) as e:
             if self.job_settings.alert_url is not None:
                 message = f"Error with {input_data_name}"
-                extra_text = f"Message: {e.args}"
+                extra_text = (
+                    str(e) if isinstance(e, Error) else f"Message: {e.args}"
+                )
                 self._send_alert_to_teams(
                     message=message, extra_text=extra_text
                 )
