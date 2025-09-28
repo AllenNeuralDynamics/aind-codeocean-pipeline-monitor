@@ -558,7 +558,7 @@ class PipelineMonitorJob:
                         self._update_docdb(
                             core_metadata_jsons=core_metadata_jsons,
                             name=data_asset_params.name,
-                            wait_for_data_asset_response=(wait_for_data_asset),
+                            wait_for_data_asset_response=wait_for_data_asset,
                         )
                     except Exception as e:
                         logging.error(
