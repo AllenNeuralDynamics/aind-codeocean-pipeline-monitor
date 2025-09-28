@@ -792,7 +792,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         core_json = dict()
-        capture_result_response = DataAsset(
+        wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
             name=name,
@@ -805,7 +805,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertLogs(level="INFO") as captured:
             self.capture_job._update_docdb(
                 core_metadata_jsons=core_json,
-                capture_result_response=capture_result_response,
+                wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
             )
         self.assertEqual(
@@ -852,7 +852,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         core_json = dict()
-        capture_result_response = DataAsset(
+        wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
             name=name,
@@ -865,7 +865,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertLogs(level="DEBUG") as captured:
             self.capture_job._update_docdb(
                 core_metadata_jsons=core_json,
-                capture_result_response=capture_result_response,
+                wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
             )
         expected_captured_output = [
@@ -917,7 +917,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         core_json = dict()
-        capture_result_response = DataAsset(
+        wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
             name=name,
@@ -936,7 +936,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertLogs(level="INFO") as captured:
             self.capture_job._update_docdb(
                 core_metadata_jsons=core_json,
-                capture_result_response=capture_result_response,
+                wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
             )
         self.assertEqual(
@@ -978,7 +978,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
         core_json = dict()
-        capture_result_response = DataAsset(
+        wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
             name=name,
@@ -997,7 +997,7 @@ class TestPipelineMonitorJob(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.capture_job._update_docdb(
                 core_metadata_jsons=core_json,
-                capture_result_response=capture_result_response,
+                wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
             )
         mock_docdb_get.assert_not_called()
