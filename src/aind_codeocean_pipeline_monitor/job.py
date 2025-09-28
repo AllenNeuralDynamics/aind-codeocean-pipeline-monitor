@@ -174,7 +174,7 @@ class PipelineMonitorJob:
 
     @staticmethod
     def _get_name_and_level_from_data_description(
-        core_metadata_json: Dict[str, Dict[str, Any]]
+        core_metadata_json: Dict[str, Dict[str, Any]],
     ) -> Dict[str, Optional[str]]:
         """
         Attempts to extract a name and data level from the data_description
@@ -365,7 +365,7 @@ class PipelineMonitorJob:
     def _update_docdb(
         self,
         core_metadata_jsons: Dict[str, Dict[str, Any]],
-        capture_result_response: DataAsset,
+        wait_for_data_asset_response: DataAsset,
         name: str,
     ) -> None:
         """
@@ -374,7 +374,7 @@ class PipelineMonitorJob:
         ----------
         core_metadata_jsons : Dict[str, Dict[str, Any]]
           For example, {"subject": ..., "data_description":...}
-        capture_result_response : DataAsset
+        wait_for_data_asset_response : DataAsset
         name : str
           The name of the data asset.
 
@@ -386,8 +386,8 @@ class PipelineMonitorJob:
         """
 
         docdb_settings = self.job_settings.capture_settings.docdb_settings
-        capture_result_source = capture_result_response.source_bucket
-        codeocean_id = capture_result_response.id
+        capture_result_source = wait_for_data_asset_response.source_bucket
+        codeocean_id = wait_for_data_asset_response.id
         # We only index data assets in AWS for now
         if capture_result_source is None or (
             capture_result_source is not None
@@ -395,7 +395,7 @@ class PipelineMonitorJob:
             and docdb_settings.results_bucket is not None
         ):
             bucket = docdb_settings.results_bucket
-            prefix = capture_result_response.id
+            prefix = wait_for_data_asset_response.id
         elif (
             capture_result_source is not None
             and capture_result_source.external is True
@@ -408,7 +408,7 @@ class PipelineMonitorJob:
         else:
             raise ValueError(
                 f"Unable to add record to DocDB using "
-                f"{capture_result_response} and {docdb_settings}!"
+                f"{wait_for_data_asset_response} and {docdb_settings}!"
             )
         location = f"s3://{bucket}/{prefix}"
         last_modified = (
@@ -458,8 +458,11 @@ class PipelineMonitorJob:
                                 ExternalPlatforms.CODEOCEAN, []
                             )
                         )
-                        if capture_result_response.id not in external_links:
-                            external_links.add(capture_result_response.id)
+                        if (
+                            wait_for_data_asset_response.id
+                            not in external_links
+                        ):
+                            external_links.add(wait_for_data_asset_response.id)
                             external_links = sorted(list(external_links))
                             record["external_links"] = external_links
                             record["last_modified"] = last_modified
@@ -555,7 +558,7 @@ class PipelineMonitorJob:
                         self._update_docdb(
                             core_metadata_jsons=core_metadata_jsons,
                             name=data_asset_params.name,
-                            capture_result_response=capture_result_response,
+                            wait_for_data_asset_response=wait_for_data_asset,
                         )
                     except Exception as e:
                         logging.error(
