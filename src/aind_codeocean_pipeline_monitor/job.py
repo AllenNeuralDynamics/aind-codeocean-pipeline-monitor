@@ -411,9 +411,6 @@ class PipelineMonitorJob:
                 f"{wait_for_data_asset_response} and {docdb_settings}!"
             )
         location = f"s3://{bucket}/{prefix}"
-        last_modified = (
-            datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z")
-        )
         external_links = {ExternalPlatforms.CODEOCEAN.value: [codeocean_id]}
         metadata = create_metadata_json(
             name=name,
@@ -433,8 +430,7 @@ class PipelineMonitorJob:
             session.mount("https://", adapter)
             with MetadataDbClient(
                 host=docdb_settings.docdb_api_gateway,
-                database=docdb_settings.docdb_database,
-                collection=docdb_settings.docdb_collection,
+                version=docdb_settings.docdb_version,
                 session=session,
             ) as docdb_client:
                 # check if record exists
@@ -444,7 +440,6 @@ class PipelineMonitorJob:
                     filter_query=filter_query,
                     projection=projection,
                     limit=1,
-                    paginate=False,
                 )
                 if len(records) > 0:
                     logging.warning(
@@ -465,7 +460,6 @@ class PipelineMonitorJob:
                             external_links.add(wait_for_data_asset_response.id)
                             external_links = sorted(list(external_links))
                             record["external_links"] = external_links
-                            record["last_modified"] = last_modified
                             docdb_response = (
                                 docdb_client.upsert_one_docdb_record(
                                     record=record

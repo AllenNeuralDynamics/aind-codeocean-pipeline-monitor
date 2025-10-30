@@ -816,7 +816,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
             filter_query={"location": "s3://example_bucket/def-123"},
             projection={"_id": 1, "location": 1, "external_links": 1},
             limit=1,
-            paginate=False,
         )
         mock_docdb_put.assert_called_once()
 
@@ -881,13 +880,11 @@ class TestPipelineMonitorJob(unittest.TestCase):
             filter_query={"location": "s3://example_bucket/def-123"},
             projection={"_id": 1, "location": 1, "external_links": 1},
             limit=1,
-            paginate=False,
         )
         mock_docdb_put.assert_called_once_with(
             record={
                 "_id": "abc",
                 "external_links": ["def-123"],
-                "last_modified": "2020-10-10T00:00:00",
             }
         )
 
@@ -947,7 +944,6 @@ class TestPipelineMonitorJob(unittest.TestCase):
             filter_query={"location": f"s3://external/{name}"},
             projection={"_id": 1, "location": 1, "external_links": 1},
             limit=1,
-            paginate=False,
         )
         mock_docdb_put.assert_called_once()
 
