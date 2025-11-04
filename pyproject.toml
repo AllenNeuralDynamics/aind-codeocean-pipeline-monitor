@@ -36,7 +36,6 @@ dev = [
 full = [
     'aind-alert-utils',
     'aind-data-schema-models>=0.3.2',
-    'aind-data-schema==1.4.0',
     'aind-data-access-api>=1.8.0,<2.0'
 ]
 
