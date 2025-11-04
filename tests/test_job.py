@@ -767,31 +767,15 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self.assertEqual(expected_params, params)
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".upsert_one_docdb_record"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
     )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".retrieve_docdb_records"
-    )
-    def test_update_docdb(
-        self, mock_docdb_get: MagicMock, mock_docdb_put: MagicMock
-    ):
+    def test_update_docdb(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method with internal result"""
 
-        mock_docdb_get.return_value = []
-        mock_response = Response()
-        mock_response.status_code = 200
-        mock_response_content = {"message": "success"}
-        mock_response._content = json.dumps(mock_response_content).encode(
-            "utf-8"
-        )
-        mock_docdb_put.return_value = mock_response
-
+        mock_docdb_register.return_value = {"message": "success"}
         name = (
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
-        core_json = dict()
         wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
@@ -804,116 +788,37 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         with self.assertLogs(level="INFO") as captured:
             self.capture_job._update_docdb(
-                core_metadata_jsons=core_json,
                 wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
+                computation=Computation(
+                    id="c123",
+                    created=0,
+                    name="c_name",
+                    state=ComputationState.Completed,
+                    run_time=100,
+                ),
             )
         self.assertEqual(
-            ["INFO:root:DocDB response: {'message': 'success'}"],
+            ["INFO:root:DocDB register_co_result: {'message': 'success'}"],
             captured.output,
         )
-        mock_docdb_get.assert_called_once_with(
-            filter_query={"location": "s3://example_bucket/def-123"},
-            projection={"_id": 1, "location": 1, "external_links": 1},
-            limit=1,
-        )
-        mock_docdb_put.assert_called_once()
-
-    @patch("aind_codeocean_pipeline_monitor.job.datetime")
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".upsert_one_docdb_record"
-    )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".retrieve_docdb_records"
-    )
-    def test_update_docdb_record_exists(
-        self,
-        mock_docdb_get: MagicMock,
-        mock_docdb_put: MagicMock,
-        mock_dt: MagicMock,
-    ):
-        """Tests _update_docdb method with internal result when record
-        already exists in docdb."""
-
-        mock_docdb_get.return_value = [{"_id": "abc"}]
-        mock_dt.now.return_value = datetime(2020, 10, 10)
-        mock_response = Response()
-        mock_response.status_code = 200
-        mock_response_content = {"message": "success"}
-        mock_response._content = json.dumps(mock_response_content).encode(
-            "utf-8"
-        )
-        mock_docdb_put.return_value = mock_response
-
-        name = (
-            "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
-        )
-        core_json = dict()
-        wait_for_data_asset = DataAsset(
-            id="def-123",
-            created=1,
-            name=name,
-            mount=name,
-            state=DataAssetState.Ready,
-            type=DataAssetType.Result,
-            last_used=1,
-            tags=["derived"],
-        )
-        with self.assertLogs(level="DEBUG") as captured:
-            self.capture_job._update_docdb(
-                core_metadata_jsons=core_json,
-                wait_for_data_asset_response=wait_for_data_asset,
-                name=name,
-            )
-        expected_captured_output = [
-            (
-                "WARNING:root:Found an existing record(s) for location "
-                "s3://example_bucket/def-123! Will attempt to append "
-                "codeocean id to external links."
-            ),
-            "DEBUG:root:DocDB response: {'message': 'success'}",
-        ]
-        self.assertEqual(expected_captured_output, captured.output)
-        mock_docdb_get.assert_called_once_with(
-            filter_query={"location": "s3://example_bucket/def-123"},
-            projection={"_id": 1, "location": 1, "external_links": 1},
-            limit=1,
-        )
-        mock_docdb_put.assert_called_once_with(
-            record={
-                "_id": "abc",
-                "external_links": ["def-123"],
-            }
+        mock_docdb_register.assert_called_once_with(
+            s3_location="s3://example_bucket/def-123",
+            # name=name,
+            # co_asset_id="def-123",
+            # co_computation_i="c123",
         )
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".upsert_one_docdb_record"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
     )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".retrieve_docdb_records"
-    )
-    def test_update_docdb_external(
-        self, mock_docdb_get: MagicMock, mock_docdb_put: MagicMock
-    ):
+    def test_update_docdb_external(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method with external result"""
 
-        mock_docdb_get.return_value = []
-        mock_response = Response()
-        mock_response.status_code = 200
-        mock_response_content = {"message": "success"}
-        mock_response._content = json.dumps(mock_response_content).encode(
-            "utf-8"
-        )
-        mock_docdb_put.return_value = mock_response
-
+        mock_docdb_register.return_value = {"message": "success"}
         name = (
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
-        core_json = dict()
         wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
@@ -932,48 +837,37 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         with self.assertLogs(level="INFO") as captured:
             self.capture_job._update_docdb(
-                core_metadata_jsons=core_json,
                 wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
+                computation=Computation(
+                    id="c123",
+                    created=0,
+                    name="c_name",
+                    state=ComputationState.Completed,
+                    run_time=100,
+                ),
             )
         self.assertEqual(
-            ["INFO:root:DocDB response: {'message': 'success'}"],
+            ["INFO:root:DocDB register_co_result: {'message': 'success'}"],
             captured.output,
         )
-        mock_docdb_get.assert_called_once_with(
-            filter_query={"location": f"s3://external/{name}"},
-            projection={"_id": 1, "location": 1, "external_links": 1},
-            limit=1,
+        mock_docdb_register.assert_called_once_with(
+            s3_location=f"s3://external/{name}",
+            # name=name,
+            # co_asset_id="def-123",
+            # co_computation_i="c123",
         )
-        mock_docdb_put.assert_called_once()
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".upsert_one_docdb_record"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
     )
-    @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
-        ".retrieve_docdb_records"
-    )
-    def test_update_docdb_error(
-        self, mock_docdb_get: MagicMock, mock_docdb_put: MagicMock
-    ):
+    def test_update_docdb_error(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method when it is unable to figure out the
         location"""
-
-        mock_docdb_get.return_value = []
-        mock_response = Response()
-        mock_response.status_code = 200
-        mock_response_content = {"message": "success"}
-        mock_response._content = json.dumps(mock_response_content).encode(
-            "utf-8"
-        )
-        mock_docdb_put.return_value = mock_response
 
         name = (
             "ecephys_123456_2020-10-10_00-00-00_processed_2020-11-10_00-00-00"
         )
-        core_json = dict()
         wait_for_data_asset = DataAsset(
             id="def-123",
             created=1,
@@ -992,12 +886,17 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         with self.assertRaises(ValueError):
             self.capture_job._update_docdb(
-                core_metadata_jsons=core_json,
                 wait_for_data_asset_response=wait_for_data_asset,
                 name=name,
+                computation=Computation(
+                    id="c123",
+                    created=0,
+                    name="c_name",
+                    state=ComputationState.Completed,
+                    run_time=100,
+                ),
             )
-        mock_docdb_get.assert_not_called()
-        mock_docdb_put.assert_not_called()
+        mock_docdb_register.assert_not_called()
 
     @patch(
         "aind_codeocean_pipeline_monitor.job.PipelineMonitorJob"

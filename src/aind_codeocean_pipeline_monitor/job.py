@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
@@ -12,8 +12,6 @@ import requests
 from aind_data_access_api.document_db import MetadataDbClient
 from aind_data_schema.core.metadata import (
     CORE_FILES,
-    ExternalPlatforms,
-    create_metadata_json,
 )
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
@@ -364,19 +362,21 @@ class PipelineMonitorJob:
 
     def _update_docdb(
         self,
-        core_metadata_jsons: Dict[str, Dict[str, Any]],
         wait_for_data_asset_response: DataAsset,
+        computation: Computation,
         name: str,
     ) -> None:
         """
         Add a record in DocDB for the newly created Result
+        using the docdb registration api.
+
         Parameters
         ----------
-        core_metadata_jsons : Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
         wait_for_data_asset_response : DataAsset
         name : str
           The name of the data asset.
+        computation : Computation
+          The computation that created the data asset.
 
         Returns
         -------
@@ -388,6 +388,7 @@ class PipelineMonitorJob:
         docdb_settings = self.job_settings.capture_settings.docdb_settings
         capture_result_source = wait_for_data_asset_response.source_bucket
         codeocean_id = wait_for_data_asset_response.id
+        computation_id = computation.id
         # We only index data assets in AWS for now
         if capture_result_source is None or (
             capture_result_source is not None
@@ -411,13 +412,6 @@ class PipelineMonitorJob:
                 f"{wait_for_data_asset_response} and {docdb_settings}!"
             )
         location = f"s3://{bucket}/{prefix}"
-        external_links = {ExternalPlatforms.CODEOCEAN.value: [codeocean_id]}
-        metadata = create_metadata_json(
-            name=name,
-            location=location,
-            optional_external_links=external_links,
-            core_jsons=core_metadata_jsons,
-        )
         if docdb_settings is not None:
             retry = Retry(
                 total=3,
@@ -433,46 +427,10 @@ class PipelineMonitorJob:
                 version=docdb_settings.docdb_version,
                 session=session,
             ) as docdb_client:
-                # check if record exists
-                filter_query = {"location": location}
-                projection = {"_id": 1, "location": 1, "external_links": 1}
-                records = docdb_client.retrieve_docdb_records(
-                    filter_query=filter_query,
-                    projection=projection,
-                    limit=1,
+                register_response = docdb_client.register_asset(
+                    s3_location=location,
                 )
-                if len(records) > 0:
-                    logging.warning(
-                        f"Found an existing record(s) for location {location}!"
-                        f" Will attempt to append codeocean id to external"
-                        f" links."
-                    )
-                    for record in records:
-                        external_links = set(
-                            record.get("external_links", dict()).get(
-                                ExternalPlatforms.CODEOCEAN, []
-                            )
-                        )
-                        if (
-                            wait_for_data_asset_response.id
-                            not in external_links
-                        ):
-                            external_links.add(wait_for_data_asset_response.id)
-                            external_links = sorted(list(external_links))
-                            record["external_links"] = external_links
-                            docdb_response = (
-                                docdb_client.upsert_one_docdb_record(
-                                    record=record
-                                )
-                            )
-                            logging.debug(
-                                f"DocDB response: {docdb_response.json()}"
-                            )
-                else:
-                    docdb_response = docdb_client.upsert_one_docdb_record(
-                        record=metadata
-                    )
-                    logging.info(f"DocDB response: {docdb_response.json()}")
+                logging.info(f"DocDB register_co_result: {register_response}")
 
     def run_job(self):
         """
@@ -546,13 +504,12 @@ class PipelineMonitorJob:
                 ):
                     logging.info(
                         f"Updating DocDB: for {data_asset_params.name} "
-                        f"with {core_metadata_jsons}"
                     )
                     try:
                         self._update_docdb(
-                            core_metadata_jsons=core_metadata_jsons,
                             name=data_asset_params.name,
                             wait_for_data_asset_response=wait_for_data_asset,
+                            computation=monitor_pipeline_response,
                         )
                     except Exception as e:
                         logging.error(
