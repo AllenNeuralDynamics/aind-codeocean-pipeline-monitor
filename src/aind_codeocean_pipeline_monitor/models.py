@@ -31,13 +31,17 @@ class DocDbSettings(BaseSettings):
         default=...,
         description="DocDB API Gateway",
     )
-    docdb_database: str = Field(
-        default=...,
-        description="DocDB Database",
+    docdb_version: str = Field(
+        default="v1",
+        description="DocDB API Version",
     )
-    docdb_collection: str = Field(
+    docdb_database: Optional[str] = Field(
         default=...,
-        description="DocDB Collection",
+        description="(DEPRECATED) The default metadata database is used.",
+    )
+    docdb_collection: Optional[str] = Field(
+        default=...,
+        description="(DEPRECATED) The default metadata collection is used.",
     )
     results_bucket: str = Field(
         default=...,

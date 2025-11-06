@@ -3,18 +3,13 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Dict, Optional
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
 import requests
 from aind_data_access_api.document_db import MetadataDbClient
-from aind_data_schema.core.metadata import (
-    CORE_FILES,
-    ExternalPlatforms,
-    create_metadata_json,
-)
 from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 
@@ -174,7 +169,7 @@ class PipelineMonitorJob:
 
     @staticmethod
     def _get_name_and_level_from_data_description(
-        core_metadata_json: Dict[str, Dict[str, Any]],
+        data_description: Optional[Dict[str, Any]],
     ) -> Dict[str, Optional[str]]:
         """
         Attempts to extract a name and data level from the data_description
@@ -182,8 +177,7 @@ class PipelineMonitorJob:
 
         Parameters
         ----------
-        core_metadata_json : Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
+        data_description : Optional[Dict[str, Any]]
 
         Returns
         -------
@@ -192,8 +186,7 @@ class PipelineMonitorJob:
 
         """
 
-        if core_metadata_json.get("data_description") is not None:
-            data_description = core_metadata_json.get("data_description")
+        if data_description is not None:
             return {
                 "name": data_description.get("name"),
                 "data_level": data_description.get("data_level"),
@@ -204,7 +197,7 @@ class PipelineMonitorJob:
     def _get_name(
         self,
         input_data_name: Optional[str],
-        core_metadata_jsons: Dict[str, Dict[str, Any]],
+        data_description: Optional[Dict[str, Any]],
     ) -> str:
         """
         Get a data asset name. Will try to use the name from a
@@ -216,8 +209,8 @@ class PipelineMonitorJob:
         ----------
         input_data_name : Optional[str]
           Name of the input data asset. The computation only stores the id.
-        core_metadata_jsons : Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
+        data_description : Optional[Dict[str, Any]]
+          The data_description.json contents if available.
 
         Returns
         -------
@@ -237,7 +230,7 @@ class PipelineMonitorJob:
         default_name = f"{input_data_name}_{suffix}_{dt_suffix}"
 
         info_from_file = self._get_name_and_level_from_data_description(
-            core_metadata_jsons
+            data_description
         )
         name_from_file = info_from_file.get("name")
         level_from_file = info_from_file.get("data_level")
@@ -270,7 +263,7 @@ class PipelineMonitorJob:
         self,
         monitor_pipeline_response: Computation,
         input_data_name: Optional[str],
-        core_metadata_jsons: Dict[str, Dict[str, Any]],
+        data_description: Optional[Dict[str, Any]],
     ) -> DataAssetParams:
         """
         Build DataAssetParams model from CapturedDataAssetParams and
@@ -283,8 +276,8 @@ class PipelineMonitorJob:
           AWSS3Target, prefix will be overridden with data asset name.
         input_data_name : Optional[str]
           Name of the input data asset that was converted to a result
-        core_metadata_jsons: Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
+        data_description: Dict[str, Dict[str, Any]]
+          The data_description.json contents if available.
 
         Returns
         -------
@@ -295,7 +288,7 @@ class PipelineMonitorJob:
             data_asset_name = self.job_settings.capture_settings.name
         else:
             data_asset_name = self._get_name(
-                core_metadata_jsons=core_metadata_jsons,
+                data_description=data_description,
                 input_data_name=input_data_name,
             )
         if self.job_settings.capture_settings.mount is not None:
@@ -328,55 +321,56 @@ class PipelineMonitorJob:
         return data_asset_params
 
     def _gather_metadata(
-        self, computation: Computation
+        self, computation: Computation, core_metadata_name: str
     ) -> Dict[str, Dict[str, Any]]:
         """
-        Gather all the metadata files from the top level results folder into
+        Download a metadata file from the top level results folder into
         a single dictionary
         Parameters
         ----------
         computation : Computation
+        core_metadata_name : str
+          Name of core metadata file to download, without .json suffix
 
         Returns
         -------
         Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
 
         """
         result_files = self.client.computations.list_computation_results(
             computation_id=computation.id
         )
-        core_jsons = dict()
-        for core_metadata_name in CORE_FILES:
-            core_metadata_json_name = f"{core_metadata_name}.json"
-            if core_metadata_json_name in [r.path for r in result_files.items]:
-                download_url = (
-                    self.client.computations.get_result_file_download_url(
-                        computation_id=computation.id,
-                        path=core_metadata_json_name,
-                    )
+        core_json = dict()
+        core_metadata_json_name = f"{core_metadata_name}.json"
+        if core_metadata_json_name in [r.path for r in result_files.items]:
+            download_url = (
+                self.client.computations.get_result_file_download_url(
+                    computation_id=computation.id,
+                    path=core_metadata_json_name,
                 )
-                with urlopen(download_url.url) as f:
-                    contents = f.read().decode("utf-8")
-                metadata_contents = json.loads(contents)
-                core_jsons[core_metadata_name] = metadata_contents
-        return core_jsons
+            )
+            with urlopen(download_url.url) as f:
+                contents = f.read().decode("utf-8")
+            core_json = json.loads(contents)
+        return core_json
 
     def _update_docdb(
         self,
-        core_metadata_jsons: Dict[str, Dict[str, Any]],
         wait_for_data_asset_response: DataAsset,
+        computation: Computation,
         name: str,
     ) -> None:
         """
         Add a record in DocDB for the newly created Result
+        using the docdb registration api.
+
         Parameters
         ----------
-        core_metadata_jsons : Dict[str, Dict[str, Any]]
-          For example, {"subject": ..., "data_description":...}
         wait_for_data_asset_response : DataAsset
         name : str
           The name of the data asset.
+        computation : Computation
+          The computation that created the data asset.
 
         Returns
         -------
@@ -388,6 +382,7 @@ class PipelineMonitorJob:
         docdb_settings = self.job_settings.capture_settings.docdb_settings
         capture_result_source = wait_for_data_asset_response.source_bucket
         codeocean_id = wait_for_data_asset_response.id
+        computation_id = computation.id
         # We only index data assets in AWS for now
         if capture_result_source is None or (
             capture_result_source is not None
@@ -411,16 +406,6 @@ class PipelineMonitorJob:
                 f"{wait_for_data_asset_response} and {docdb_settings}!"
             )
         location = f"s3://{bucket}/{prefix}"
-        last_modified = (
-            datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z")
-        )
-        external_links = {ExternalPlatforms.CODEOCEAN.value: [codeocean_id]}
-        metadata = create_metadata_json(
-            name=name,
-            location=location,
-            optional_external_links=external_links,
-            core_jsons=core_metadata_jsons,
-        )
         if docdb_settings is not None:
             retry = Retry(
                 total=3,
@@ -433,52 +418,16 @@ class PipelineMonitorJob:
             session.mount("https://", adapter)
             with MetadataDbClient(
                 host=docdb_settings.docdb_api_gateway,
-                database=docdb_settings.docdb_database,
-                collection=docdb_settings.docdb_collection,
+                version=docdb_settings.docdb_version,
                 session=session,
             ) as docdb_client:
-                # check if record exists
-                filter_query = {"location": location}
-                projection = {"_id": 1, "location": 1, "external_links": 1}
-                records = docdb_client.retrieve_docdb_records(
-                    filter_query=filter_query,
-                    projection=projection,
-                    limit=1,
-                    paginate=False,
+                register_response = docdb_client.register_co_result(
+                    s3_location=location,
+                    name=name,
+                    co_asset_id=codeocean_id,
+                    co_computation_id=computation_id,
                 )
-                if len(records) > 0:
-                    logging.warning(
-                        f"Found an existing record(s) for location {location}!"
-                        f" Will attempt to append codeocean id to external"
-                        f" links."
-                    )
-                    for record in records:
-                        external_links = set(
-                            record.get("external_links", dict()).get(
-                                ExternalPlatforms.CODEOCEAN, []
-                            )
-                        )
-                        if (
-                            wait_for_data_asset_response.id
-                            not in external_links
-                        ):
-                            external_links.add(wait_for_data_asset_response.id)
-                            external_links = sorted(list(external_links))
-                            record["external_links"] = external_links
-                            record["last_modified"] = last_modified
-                            docdb_response = (
-                                docdb_client.upsert_one_docdb_record(
-                                    record=record
-                                )
-                            )
-                            logging.debug(
-                                f"DocDB response: {docdb_response.json()}"
-                            )
-                else:
-                    docdb_response = docdb_client.upsert_one_docdb_record(
-                        record=metadata
-                    )
-                    logging.info(f"DocDB response: {docdb_response.json()}")
+                logging.info(f"DocDB register_co_result: {register_response}")
 
     def run_job(self):
         """
@@ -520,13 +469,14 @@ class PipelineMonitorJob:
             )
             if self.job_settings.capture_settings is not None:
                 logging.info("Capturing result")
-                core_metadata_jsons = self._gather_metadata(
-                    computation=monitor_pipeline_response
+                data_description = self._gather_metadata(
+                    computation=monitor_pipeline_response,
+                    core_metadata_name="data_description",
                 )
                 data_asset_params = self._build_data_asset_params(
                     monitor_pipeline_response=monitor_pipeline_response,
                     input_data_name=input_data_name,
-                    core_metadata_jsons=core_metadata_jsons,
+                    data_description=data_description,
                 )
                 capture_result_response = (
                     self.client.data_assets.create_data_asset(
@@ -552,13 +502,12 @@ class PipelineMonitorJob:
                 ):
                     logging.info(
                         f"Updating DocDB: for {data_asset_params.name} "
-                        f"with {core_metadata_jsons}"
                     )
                     try:
                         self._update_docdb(
-                            core_metadata_jsons=core_metadata_jsons,
                             name=data_asset_params.name,
                             wait_for_data_asset_response=wait_for_data_asset,
+                            computation=monitor_pipeline_response,
                         )
                     except Exception as e:
                         logging.error(
