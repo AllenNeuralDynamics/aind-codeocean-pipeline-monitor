@@ -751,7 +751,8 @@ class TestPipelineMonitorJob(unittest.TestCase):
         self.assertEqual(expected_params, params)
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
+        ".register_co_result"
     )
     def test_update_docdb(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method with internal result"""
@@ -788,10 +789,14 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         mock_docdb_register.assert_called_once_with(
             s3_location="s3://example_bucket/def-123",
+            name=name,
+            co_asset_id="def-123",
+            co_computation_id="c123",
         )
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
+        ".register_co_result"
     )
     def test_update_docdb_external(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method with external result"""
@@ -834,10 +839,14 @@ class TestPipelineMonitorJob(unittest.TestCase):
         )
         mock_docdb_register.assert_called_once_with(
             s3_location=f"s3://external/{name}",
+            name=name,
+            co_asset_id="def-123",
+            co_computation_id="c123",
         )
 
     @patch(
-        "aind_codeocean_pipeline_monitor.job.MetadataDbClient.register_asset"
+        "aind_codeocean_pipeline_monitor.job.MetadataDbClient"
+        ".register_co_result"
     )
     def test_update_docdb_error(self, mock_docdb_register: MagicMock):
         """Tests _update_docdb method when it is unable to figure out the

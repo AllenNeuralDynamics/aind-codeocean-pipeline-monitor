@@ -36,7 +36,7 @@ dev = [
 full = [
     'aind-alert-utils',
     'aind-data-schema-models>=0.3.2',
-    'aind-data-access-api>=1.8.0,<2.0'
+    'aind-data-access-api>=1.9.0,<2.0'
 ]
 
 [tool.setuptools.packages.find]

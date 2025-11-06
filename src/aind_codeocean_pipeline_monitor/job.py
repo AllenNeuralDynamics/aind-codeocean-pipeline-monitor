@@ -421,8 +421,11 @@ class PipelineMonitorJob:
                 version=docdb_settings.docdb_version,
                 session=session,
             ) as docdb_client:
-                register_response = docdb_client.register_asset(
+                register_response = docdb_client.register_co_result(
                     s3_location=location,
+                    name=name,
+                    co_asset_id=codeocean_id,
+                    co_computation_id=computation_id,
                 )
                 logging.info(f"DocDB register_co_result: {register_response}")
 
