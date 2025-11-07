@@ -36,11 +36,11 @@ class DocDbSettings(BaseSettings):
         description="DocDB API Version",
     )
     docdb_database: Optional[str] = Field(
-        default=...,
+        default=None,
         description="(DEPRECATED) The default metadata database is used.",
     )
     docdb_collection: Optional[str] = Field(
-        default=...,
+        default=None,
         description="(DEPRECATED) The default metadata collection is used.",
     )
     results_bucket: str = Field(
